@@ -4,6 +4,11 @@ This program computes coefficients of the azimuthal distribution of a lepton pai
 The analytical expresion are give in arXiv:1307.3417v1 eq. (91) to (97)
 Author: Nicolas
 Date: December 2023
+To do:
+    - Implement grid calculation/interpolation
+    - Implement other coefficients
+    - Tune grid size to better performance/precision
+    - link it with kt_smearing
 """
 
 
@@ -260,7 +265,7 @@ def formfactor(k, RA, aA, Z):
     else:
         # If no grid is found, compute it and store it
         print("INFO FORMFACTOR: No grid found, computing grid")
-        Npoints = 1000
+        Npoints = 10000
         logkmin = -3
         logkmax = 2
         grid_formfactor = grid(ion,1,Npoints,"FORMFACTOR",formfactor_eval)
@@ -294,27 +299,43 @@ def Fgammagamma_integrand(x1,x2,pt12,pt22,RA,aA,Z):
     return photon_flux(x1,pt12,RA,aA,Z)*photon_flux(x2,pt22,RA,aA,Z)
 
 def Fgammagamma_eval(x1,x2,qt,RA,aA,Z):
+    if qt < 0.05:
+        N_theta = 10
+    if 0.05 <= qt < 0.5:
+        N_theta = 40
+    if 0.5 <= qt <= 1:
+        N_theta = 200
+    N_pt = 2000
     qt2 = qt*qt
-    TH1 = np.linspace(0,2*np.pi,1000)
-    PT1 = np.linspace(0,20,1000)
-    grid_Fgammagamma_th = grid(ion,1,1000)
+    TH1 = np.linspace(0,2*np.pi,N_theta)
+    PT1_2 = np.logspace(-1,np.log10(500),N_pt-50)
+    PT1_1 = np.logspace(-5,-1,50,endpoint=False)
+    PT1 = np.append(PT1_1,PT1_2)
+    grid_Fgammagamma_th = grid(ion,1,N_theta)
     grid_Fgammagamma_th.set_axis(0,TH1)
     for i,th1 in enumerate(TH1):
-        grid_Fgammagamma_pt = grid(ion,1,1000)
+        grid_Fgammagamma_pt = grid(ion,1,N_pt)
         grid_Fgammagamma_pt.set_axis(0,PT1)
         for j,pt1 in enumerate(PT1):
             grid_Fgammagamma_pt.values[j] = pt1*Fgammagamma_integrand(x1,x2,pt1*pt1,qt2+pt1*pt1 -2*qt*pt1*np.cos(th1),RA,aA,Z)
         if i == 1:
-            grid_Fgammagamma_th.values[i] = grid_peak_integration(grid_Fgammagamma_pt,plot=True)
+            grid_Fgammagamma_th.values[i] = grid_peak_integration(grid_Fgammagamma_pt,plot=False)
         else:
             grid_Fgammagamma_th.values[i] = grid_peak_integration(grid_Fgammagamma_pt)
-        progress((i+1)/len(TH1)*100)
-    plt.plot(TH1,grid_Fgammagamma_th.values)
-    plt.show()
-    return scp.integrate.quad(lambda th1: grid_Fgammagamma_th.evaluate(th1),0,2*np.pi)[0]
+    X = np.linspace(0,2*np.pi,1000)
+    Y = np.zeros_like(X)
+    for i,x in enumerate(X):
+        Y[i] = grid_Fgammagamma_th.evaluate(x)
+    if qt > 0.1:
+        plt.plot(X,Y)
+        plt.plot(TH1,grid_Fgammagamma_th.values,marker="x",linestyle="None")
+        plt.title("qt = "+str(qt))
+        plt.show()
+    I = scp.integrate.quad(lambda th1: grid_Fgammagamma_th.evaluate(th1),0,2*np.pi)
+    return I[0]
 
-
-def qt4Ngammagamma_integrand(x1,x2,pt1,pt2,RA,aA,Z):
+#WIP: I have to implement the other coefficients
+""" def qt4Ngammagamma_integrand(x1,x2,pt1,pt2,RA,aA,Z):
     #(2(pt1@pt2)**2 - (pt1**2*pt2**2)*N)/(x1*x2)
     pt12 = pt1[0]*pt1[0]+pt1[1]*pt1[1]
     pt22 = pt2[0]*pt2[0]+pt2[1]*pt2[1]
@@ -322,9 +343,6 @@ def qt4Ngammagamma_integrand(x1,x2,pt1,pt2,RA,aA,Z):
     N = photon_flux(x1,pt12,RA,aA,Z)*photon_flux(x2,pt22,RA,aA,Z)
     return (2*pt1pt2*pt1pt2 - pt12*pt22) * N
 
-def qt4Ngammagamma_eval(x1,x2,qt,RA,aA,Z):
-    integrale = mp.quad(lambda pt1x,pt1y: qt4Ngammagamma_integrand(x1,x2,[pt1x,pt1y],[qt[0]-pt1x,qt[1]-pt1y],RA,aA,Z),mp.linspace(-1,1,5),[-1,1],verbose=False,error=False)
-    return integrale/(M1*M1*M2*M2)
 
 
 def qt2Hgammagamma_integrand(x1,x2,pt1,pt2,RA,aA,Z):
@@ -337,9 +355,6 @@ def qt2Hgammagamma_integrand(x1,x2,pt1,pt2,RA,aA,Z):
     N = photon_flux(x1,pt12,RA,aA,Z)*photon_flux(x2,pt22,RA,aA,Z)
     return (2/qt2*(pt12*pt12 + pt22*pt22 + 2*pt1pt2*pt1pt2 +2*pt1pt2*(pt12+pt22))-pt12-pt22) * N
 
-def qt2Hgammagamma_eval(x1,x2,qt,RA,aA,Z):
-    integrale = mp.quad(lambda pt1x,pt1y: qt2Hgammagamma_integrand(x1,x2,[pt1x,pt1y],[qt[0]-pt1x,qt[1]-pt1y],RA,aA,Z),mp.linspace(-1,1,5),[-1,1],verbose=False,error=False)
-    return integrale/(M1*M2)
 
 def qt4Lgammagamma_integrand(x1,x2,pt1,pt2,RA,aA,Z):
     #N*(pt1**2*pt2**2)
@@ -348,9 +363,6 @@ def qt4Lgammagamma_integrand(x1,x2,pt1,pt2,RA,aA,Z):
     N = photon_flux(x1,pt12,RA,aA,Z)*photon_flux(x2,pt22,RA,aA,Z)
     return pt12*pt22*N
 
-def qt4Lgammagamma_eval(x1,x2,qt,RA,aA,Z):
-    integrale = mp.quad(lambda pt1x,pt1y: qt4Lgammagamma_integrand(x1,x2,[pt1x,pt1y],[qt[0]-pt1x,qt[1]-pt1y],RA,aA,Z),mp.linspace(-1,1,5),[-1,1],verbose=False,error=False)
-    return integrale/(M1*M1*M2*M2)
 
 def qt4Igammagamma_integrand(x1,x2,pt1,pt2,RA,aA,Z):
     #N*(2(h@pt1)(h@pt2) - (pt1@pt2))**2)
@@ -360,27 +372,11 @@ def qt4Igammagamma_integrand(x1,x2,pt1,pt2,RA,aA,Z):
     pt22 = pt2[0]*pt2[0]+pt2[1]*pt2[1]
     pt1pt2 = pt1[0]*pt2[0]+pt1[1]*pt2[1]
     N = photon_flux(x1,pt12,RA,aA,Z)*photon_flux(x2,pt22,RA,aA,Z)
-    return (2/qt2*(pt12*pt22 + pt1pt2*(pt12+pt22)+pt1pt2*pt1pt2)-pt1pt2)**2 * N
-
-def qt4Igammagamma_eval(x1,x2,qt,RA,aA,Z):
-    integrale = mp.quad(lambda pt1x,pt1y: qt4Igammagamma_integrand(x1,x2,[pt1x,pt1y],[qt[0]-pt1x,qt[1]-pt1y],RA,aA,Z),mp.linspace(-1,1,5),[-1,1],verbose=False,error=False)
-    return integrale/(M1*M1*M2*M2)
+    return (2/qt2*(pt12*pt22 + pt1pt2*(pt12+pt22)+pt1pt2*pt1pt2)-pt1pt2)**2 * N """
 
 
 
-def A1(z,Mratio):
-    Mratio2 = Mratio*Mratio
-    return 2*(z*z+(1-z)*(1-z)+4*z*(1-z)*(1-Mratio2)*Mratio2)
 
-def Agammagamma(x1,x2,qt,RA,aA,Z,Mratio,z):
-    return A1(z,Mratio)*Fgammagamma_eval(x1,x2,qt,RA,aA,Z) - Mratio**4*z*(1-z)*qt4Ngammagamma_eval(x1,x2,qt,RA,aA,Z)
-
-def Bgammagamma(x1,x2,qt,RA,aA,Z,Mratio,z):
-    return 4*z*(1-z)*(1-Mratio*Mratio)*qt2Hgammagamma_eval(x1,x2,qt,RA,aA,Z)/(qt[0]*qt[0]+qt[1]*qt[1])
-
-def Cgammagamma(x1,x2,qt,RA,aA,Z,Mratio,z):
-    qt2 = qt[0]*qt[0]+qt[1]*qt[1]
-    return -z(1-z)*(1-Mratio*Mratio)*(2*qt4Igammagamma_eval(x1,x2,qt,RA,aA,Z)-qt4Lgammagamma_eval(x1,x2,qt,RA,aA,Z))/(qt2*qt2)
 
 def integ_peak(f,X,print_progress = False):
     Y = np.zeros_like(X)
@@ -407,6 +403,7 @@ def grid_peak_integration(grid,print_progress = False,plot=False):
         raise ValueError("Grid dimension must be 1")
     X = grid.axis[0]
     Y = grid.values
+    #Detect peaks
     peaks = signal.find_peaks(-Y,distance=1)[0]
     peaks = np.append([0],peaks)
     peaks = np.append(peaks,[len(X)-1])
@@ -416,28 +413,26 @@ def grid_peak_integration(grid,print_progress = False,plot=False):
         plt.semilogy()
         plt.show()
     I = 0
+    e=0
+    #Integrate between each peak
     for i in range(len(peaks)-1):
         p1 = peaks[i]
         p2 = peaks[i+1]
         f = lambda x: grid.evaluate(x)
-        res = scp.integrate.quad(f,X[p1],X[p2])[0]
-        I += res
+        res = scp.integrate.quad(f,X[p1],X[p2])
+        I += res[0]
         if print_progress:
             progress((i+1)/len(peaks)*100)
     return I
-
-
-x1,x2 = np.random.rand(2)
-th1 = np.random.rand()*2*np.pi
-QT =[0.01,0.1,1]
-PT = np.linspace(0,100,10000)
-res = np.zeros((len(QT),len(PT)))
+x1 = 0.1
+x2 = 0.1
+QT = np.logspace(-5,0,30)
+val = np.zeros_like(QT)
 for i,qt in enumerate(QT):
-    for j,pt1 in enumerate(PT):
-        res[i,j] = pt1*Fgammagamma_integrand(x1,x2,pt1*pt1,qt*qt+pt1*pt1 -2*qt*pt1*np.cos(th1),RA_Pb,aA_Pb,Z_Pb)
-    plt.plot(PT,res[i],label=f"qt = {qt}")
-plt.title("x1,x2,th1 = "+str(x1)+","+str(x2)+","+str(th1))
-plt.semilogy()
-plt.legend()
+    val[i] =Fgammagamma_eval(x1,x2,qt,RA_Pb,aA_Pb,Z_Pb)
+    print(qt,val[i],i/len(QT)*100," %")
+    
+
+plt.plot(QT,val)
 plt.show()
 
