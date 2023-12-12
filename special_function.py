@@ -1,5 +1,5 @@
 import mpmath as mp
-
+#Compute the lerch-hankel function, shamelessly copied from https://fredrikj.net/blog/2022/02/computing-the-lerch-transcendent/
 def lerch_hankel(z, s, a):
     z, s, a = mp.mpmathify(z), mp.mpmathify(s), mp.mpmathify(a)
     if z == 0 or z == 1 or mp.isint(a):

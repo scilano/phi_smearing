@@ -23,7 +23,8 @@ import sys
 import special_function as sf
 import scipy.signal as signal
 import os
-
+import tqdm
+from multiprocessing import Pool
 
 class grid:
     """
@@ -34,7 +35,7 @@ class grid:
         dim (int): The number of dimensions of the grid.
         length (int): Number of points the axis.
         name (str, optional): The name of the grid.
-        function (function, optional): The function associated with the grid.
+        function (function, optional): The function associated with the grid. under the form f(x,R,A,Z)
         axis (ndarray): The values of the grid axis.
         values (ndarray): The values of the grid.
         interpolated (bool): Indicates if the grid has been interpolated.
@@ -89,7 +90,7 @@ class grid:
 
     def enlarge_axis(self, i: int, new_axis_values: list):
         """
-        Enlarges the values of the grid axis at the specified dimension.
+        Extand the grid axis at the specified dimension.
 
         Args:
             i (int): The dimension index.
@@ -106,7 +107,6 @@ class grid:
         #Create the new axis
         if new_axis_values[0] < self.axis[i][0]:
             self.axis[i] = np.append(new_axis_values,self.axis[i])
-            self.values[i] = np.append(new_axis_values,self.values)
         elif new_axis_values[-1] > self.axis[i][-1]:
             self.axis[i] = np.append(self.axis[i],new_axis_values)
         else:
@@ -118,15 +118,16 @@ class grid:
         #Compute the new values of the grid
         new_grid = np.zeros(self.lengths)
         print("INFO "+self.name+": Computing new grid values, may take a while")
-
+        pbar = tqdm.tqdm(total=np.prod(self.lengths))
         for index in np.ndindex(tuple(self.lengths)):
             try :
                 #If the index is in the old grid, copy the value
                 new_grid[index] = self.values[index]
+                pbar.update(1)
             except:
                 x = np.array([self.axis[i][index[i]] for i in range(self.dim)])
                 new_grid[index] = float(self.function(x,self.RA,self.aA,self.Z))
-            progress(index[0]/self.lengths[0]*100)
+                pbar.update(1)
         self.values = new_grid
         if self.saved:
             self.write(self.path)
@@ -157,8 +158,10 @@ class grid:
         """
         if self.dim == 1:
             self.interpolatefun = scp.interpolate.CubicSpline(self.axis[0], self.values, extrapolate=False)
+        elif self.dim == 3:
+            self.interpolatefun = scp.interpolate.RegularGridInterpolator(self.axis, self.values, bounds_error=False, fill_value=None)
         else:
-            raise ValueError("Interpolation is only supported for 1-dimensional grids")
+            raise ValueError("Interpolation is only supported for 1-dimensional and 3-dimensional grids")
 
         self.interpolated = True
 
@@ -208,14 +211,14 @@ class grid:
 path = "/home/nicolas/Documents/ARPE_2023_2024/phi_smearing/"
 
 ion = "Pb"
-RA_dict = {"Pb":6.62,"Ca":4.43,"C":3.43,"Al":2.47,"H":0.0}
-aA_dict = {"Pb":0.546,"Ca":0.45,"C":0.35,"Al":0.3,"H":0.0}
-Z_dict = {"Pb":82,"Ca":20,"C":6,"Al":13,"H":1}
+RA_dict = {"Pb":6.62,"Ca":4.43,"C":3.43,"Al":2.47}
+aA_dict = {"Pb":0.546,"Ca":0.45,"C":0.35,"Al":0.3}
+Z_dict = {"Pb":82,"Ca":20,"C":6,"Al":13}
 
 RA_Pb = RA_dict["Pb"]/0.197
 aA_Pb = aA_dict["Pb"]/0.197
-Z_Pb = 82
-
+Z_Pb = Z_dict["Pb"]
+num_core = 4
 rho0_Pb = -1/(8*np.pi*aA_Pb**3*mp.polylog(3,-np.exp(RA_Pb/aA_Pb)))
 
 alphaem = 1/137.035999084
@@ -223,16 +226,6 @@ mproton = 0.9382720813
 
 M1 = 511e-6
 M2 = 511e-6
-
-def progress(percent):
-    bar_length = 30
-    sys.stdout.write('\r')
-    sys.stdout.write("Completed: [{:{}}] {:>3}%"
-                     .format('='*int(percent/(100.0/bar_length)),
-                             bar_length, int(percent)))
-    sys.stdout.flush()
-    if percent > 99.9:
-        print("\n")
 
 def rho(r,RA,aA):
     rho0 = rho0_Pb
@@ -271,9 +264,10 @@ def formfactor(k, RA, aA, Z):
         grid_formfactor = grid(ion,1,Npoints,"FORMFACTOR",formfactor_eval)
         K = np.logspace(logkmin,logkmax,Npoints)
         grid_formfactor.set_axis(0,K)
+        pbar = tqdm.tqdm(total=Npoints)
         for i,k in enumerate(K):
             grid_formfactor.values[i] = formfactor_eval([k],RA,aA,Z)
-            progress((i+1)/len(K)*100)
+            pbar.update(1)
         grid_formfactor.write(path)
         return grid_formfactor.evaluate(k)
         
@@ -298,11 +292,12 @@ def photon_flux(x,k2,RA,aA,Z,usegrid = True):
 def Fgammagamma_integrand(x1,x2,pt12,pt22,RA,aA,Z):
     return photon_flux(x1,pt12,RA,aA,Z)*photon_flux(x2,pt22,RA,aA,Z)
 
-def Fgammagamma_eval(x1,x2,qt,RA,aA,Z):
+def Fgammagamma_eval(X,RA,aA,Z):
+    x1,x2,qt = X
     if qt < 0.05:
         N_theta = 10
     if 0.05 <= qt < 0.5:
-        N_theta = 40
+        N_theta = 50
     if 0.5 <= qt <= 1:
         N_theta = 200
     N_pt = 2000
@@ -318,21 +313,73 @@ def Fgammagamma_eval(x1,x2,qt,RA,aA,Z):
         grid_Fgammagamma_pt.set_axis(0,PT1)
         for j,pt1 in enumerate(PT1):
             grid_Fgammagamma_pt.values[j] = pt1*Fgammagamma_integrand(x1,x2,pt1*pt1,qt2+pt1*pt1 -2*qt*pt1*np.cos(th1),RA,aA,Z)
-        if i == 1:
-            grid_Fgammagamma_th.values[i] = grid_peak_integration(grid_Fgammagamma_pt,plot=False)
-        else:
-            grid_Fgammagamma_th.values[i] = grid_peak_integration(grid_Fgammagamma_pt)
-    X = np.linspace(0,2*np.pi,1000)
-    Y = np.zeros_like(X)
-    for i,x in enumerate(X):
-        Y[i] = grid_Fgammagamma_th.evaluate(x)
-    if qt > 0.1:
-        plt.plot(X,Y)
-        plt.plot(TH1,grid_Fgammagamma_th.values,marker="x",linestyle="None")
-        plt.title("qt = "+str(qt))
-        plt.show()
-    I = scp.integrate.quad(lambda th1: grid_Fgammagamma_th.evaluate(th1),0,2*np.pi)
-    return I[0]
+        grid_Fgammagamma_th.values[i] = grid_peak_integration(grid_Fgammagamma_pt)
+    I = scp.integrate.quad(lambda th1: grid_Fgammagamma_th.evaluate(th1),0,2*np.pi,full_output=1)
+
+    #if the integration didn't work (beacuse too mucj oscilation probably), try other method
+    if I[2]["last"] == 50:
+        res = grid_peak_integration(grid_Fgammagamma_th,plot=True)
+    else: res = I[0]
+    
+    print(res,I[0])
+    return res
+
+def Fgammagamma(x1,x2,qt,RA,aA,Z):
+    global grid_Fgammagamma
+    if "grid_Fgammagamma" in globals():
+        return grid_Fgammagamma.evaluate([x1,x2,qt])
+    elif os.path.exists(f"{path}grid_Fgammagamma_{ion}.pkl"):
+        print("INFO Fgammagamma: Grid found, loading grid")
+        with open(f"{path}grid_Fgammagamma_{ion}.pkl", "rb") as file:
+            grid_Fgammagamma = pickle.load(file)
+            print("INFO Fgammagamma: Grid loaded")
+            return grid_Fgammagamma.evaluate([x1,x2,qt])
+    else:
+        print("INFO Fgammagamma: No grid found, computing grid")
+        Npointsx1 = 10
+        Npointsx2 = 10
+        Npointsqt = 50
+        logx1min = -3
+        logx1max = 0
+        logx2min = -3
+        logx2max = 0
+        logqtmin = -3
+        logqtmax = 0
+        grid_Fgammagamma = grid(ion,3,[Npointsx1,Npointsx2,Npointsqt],"Fgammagamma",Fgammagamma_eval)
+
+        #Fonction for multiprocessing
+        global Fgammagamma_multiprocess
+        
+        def Fgammagamma_multiprocess(X):
+            i,j,k = X
+            x1 = grid_Fgammagamma.axis[0][i]
+            x2 = grid_Fgammagamma.axis[1][j]
+            qt = grid_Fgammagamma.axis[2][k]
+            res = Fgammagamma_eval([x1,x2,qt],RA,aA,Z)
+            return i,j,k,res
+        
+        X1 = np.logspace(logx1min,logx1max,Npointsx1)
+        X2 = np.logspace(logx2min,logx2max,Npointsx2)
+        QT = np.logspace(logqtmin,logqtmax,Npointsqt)
+        index = [(i,j,k) for i in range(Npointsx1) for j in range(Npointsx2) for k in range(Npointsqt)]
+        grid_Fgammagamma.set_axis(0,X1)
+        grid_Fgammagamma.set_axis(1,X2)
+        grid_Fgammagamma.set_axis(2,QT)
+        
+        #Multiprocessing
+        pool = Pool(num_core)
+        res = list(tqdm.tqdm(pool.imap(Fgammagamma_multiprocess, index), total=Npointsx1*Npointsx2*Npointsqt, desc="Computing", position=1, leave=True))
+        pool.close()
+        pool.join()
+        for i,j,k,r in res:
+            grid_Fgammagamma.values[i,j,k] = r
+        grid_Fgammagamma.write(path)
+        print("INFO Fgammagamma: Grid computed")
+        
+        return grid_Fgammagamma.evaluate([x1,x2,qt])
+
+
+
 
 #WIP: I have to implement the other coefficients
 """ def qt4Ngammagamma_integrand(x1,x2,pt1,pt2,RA,aA,Z):
@@ -378,7 +425,7 @@ def qt4Igammagamma_integrand(x1,x2,pt1,pt2,RA,aA,Z):
 
 
 
-def integ_peak(f,X,print_progress = False):
+""" def integ_peak(f,X,print_progress = False):
     Y = np.zeros_like(X)
     for i,x in enumerate(X):
         Y[i] = f(x)
@@ -396,9 +443,9 @@ def integ_peak(f,X,print_progress = False):
         if print_progress:
             progress((i+1)/len(peaks)*100)
         plt.plot()
-    return I
+    return I """
 
-def grid_peak_integration(grid,print_progress = False,plot=False):
+def grid_peak_integration(grid,plot=False):
     if grid.dim != 1:
         raise ValueError("Grid dimension must be 1")
     X = grid.axis[0]
@@ -421,18 +468,17 @@ def grid_peak_integration(grid,print_progress = False,plot=False):
         f = lambda x: grid.evaluate(x)
         res = scp.integrate.quad(f,X[p1],X[p2])
         I += res[0]
-        if print_progress:
-            progress((i+1)/len(peaks)*100)
     return I
-x1 = 0.1
-x2 = 0.1
+x1 = 0.5
+x2 = 0.5
 QT = np.logspace(-5,0,30)
-val = np.zeros_like(QT)
+res = np.zeros_like(QT)
+Fgammagamma(x1,x2,0.1,RA_Pb,aA_Pb,Z_Pb)
+print(grid_Fgammagamma.values)
 for i,qt in enumerate(QT):
-    val[i] =Fgammagamma_eval(x1,x2,qt,RA_Pb,aA_Pb,Z_Pb)
-    print(qt,val[i],i/len(QT)*100," %")
+    res[i] = Fgammagamma(x1,x2,qt,RA_Pb,aA_Pb,Z_Pb)
+    print(res[i])
     
-
-plt.plot(QT,val)
+plt.plot(QT,res)
 plt.show()
-
+    
