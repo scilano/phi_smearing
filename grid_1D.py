@@ -35,7 +35,7 @@ class grid1D:
             function (function, optional): The function associated with the grid, under the form f(x,R,A,Z)
         """
         config = configparser.ConfigParser()
-        config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing_0.3/config.ini')
+        config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
         WoodsSaxon = eval(config.get("Ion", "WoodsSaxon"))
         self.ion = ion
         self.RA = WoodsSaxon[ion][0]/0.197

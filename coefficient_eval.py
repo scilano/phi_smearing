@@ -12,7 +12,7 @@ import tqdm
 import mpmath as mp
 
 config = configparser.ConfigParser()
-config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing_0.3/config.ini')
+config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
 ion = config.get("General","ion_name")
 
 

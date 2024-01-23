@@ -23,7 +23,7 @@ azimuth_distrib = True
 files=[arg for arg in sys.argv[1:] if arg.startswith('--file=')]
 nuclei=[arg for arg in sys.argv[1:] if arg.startswith('--beams=')]
 if not files or not nuclei:
-    raise Exception("The usage of it should be e.g., ./lhe_ktsmearing_UPC --beams='Pb208 Pb208' --file='/PATH/TO/file.lhe' --out='ktsmearing.lhe4upc' ")
+    raise Exception("The usage of it should be e.g., ./smearing.py --beams='Pb208 Pb208' --file='/PATH/TO/file.lhe' --out='ktsmearing.lhe4upc' ")
 files=files[0]
 files=files.replace('--file=','')
 #files=[file.lower() for file in files.split(' ')]
@@ -37,7 +37,7 @@ nuclei=[nucleus.rstrip().lstrip() for nucleus in nuclei.split(' ')]
 # name:(RA,aA,wA), RA and aA are in fm, need divide by GeVm12fm to get GeV-1
 GeVm12fm=0.1973
 config = configparser.ConfigParser()
-config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing_0.2/config.ini')
+config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
 WoodsSaxon = eval(config.get("Ion","WoodsSaxon"))
 
 if azimuth_distrib:

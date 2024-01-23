@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 
 config = configparser.ConfigParser()
-config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing_0.3/config.ini')
+config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
 path = config.get('General', 'path')
 num_core = config.getint('General', 'num_core')
 ion = config.get("General","ion_name")
