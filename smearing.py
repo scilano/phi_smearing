@@ -4,7 +4,7 @@ import sys
 import os
 import math
 import random
-
+from ast import literal_eval
 from scipy import optimize
 from scipy import interpolate
 import numpy as np
@@ -18,12 +18,13 @@ Q2max=1.0 # 1 GeV^2 as the maximally allowed Q2
 ion_Form=1 # Form1: Q**2=kT**2+(mn*x)**2, Qmin**2=(mn*x)**2; 
            # Form2: Q**2=kT**2/(1-x)+(mn*x)**2/(1-x), Qmin**2=(mn*x)**2/(1-x)
 
-azimuth_distrib = True
 
 files=[arg for arg in sys.argv[1:] if arg.startswith('--file=')]
 nuclei=[arg for arg in sys.argv[1:] if arg.startswith('--beams=')]
+azimuthalSmearing=[arg for arg in sys.argv[1:] if arg.startswith('--azimuthal_smearing=')]
+
 if not files or not nuclei:
-    raise Exception("The usage of it should be e.g., ./smearing.py --beams='Pb208 Pb208' --file='/PATH/TO/file.lhe' --out='ktsmearing.lhe4upc' ")
+    raise Exception("The usage of it should be e.g., ./smearing.py --beams='Pb208 Pb208' --file='/PATH/TO/file.lhe' --out='ktsmearing.lhe4upc' --azimuthal_smearing='True' ")
 files=files[0]
 files=files.replace('--file=','')
 #files=[file.lower() for file in files.split(' ')]
@@ -32,7 +33,12 @@ files=[files[0]]
 nuclei=nuclei[0]
 nuclei=nuclei.replace('--beams=','')
 nuclei=[nucleus.rstrip().lstrip() for nucleus in nuclei.split(' ')]
-
+if not azimuthalSmearing:
+    azimuthalSmearing = True
+else:
+    azimuthalSmearing=azimuthalSmearing[0]
+    azimuthalSmearing=azimuthalSmearing.replace('--azimuthal_smearing=','')
+    azimuthalSmearing=literal_eval(azimuthalSmearing)
 
 # name:(RA,aA,wA), RA and aA are in fm, need divide by GeVm12fm to get GeV-1
 GeVm12fm=0.1973
@@ -40,7 +46,7 @@ config = configparser.ConfigParser()
 config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
 WoodsSaxon = eval(config.get("Ion","WoodsSaxon"))
 
-if azimuth_distrib:
+if azimuthalSmearing:
     if nuclei[0] != nuclei[1]:
         raise ValueError("Azimuthal distribution is only implemented for symmetric collisions")
     else:
@@ -312,39 +318,68 @@ def boostFromEcm(E1,E2,pext):
         pext2[j]=boostl(Ecm,PBOO,pext[j])
     return pext2
 
-L_aim= []
-L_real = []
 
-def deltaPhi(pt1,pt2,phi1,phi2):
+def deltaPhi(pt1,pt2,phi1,phi_diff):
+    phi2 = phi1 + phi_diff
     d = np.abs(np.arctan2(pt1*np.sin(phi1)+pt2*np.sin(phi2),pt1*np.cos(phi1)+pt2*np.cos(phi2)) - phi1)
     if d > np.pi:
         d = 2*np.pi - d
     return d
+
+L_aim = []
+L_real = []
+err = []
+
 def sufflePhi(pext2,X,w):
     g1,g2,l1,l2 = np.array(pext2)
-    dphi_choosen = np.random.choice(X,p=w)
-
+    N = len(X)
     qt1 = pt(l1)
     qt2 = pt(l2)
     phi1 = phi(l1)
     phi2 = phi(l2)
-    
-    qt_pair2 = qt1**2 + qt2**2 + 2*qt1*qt2*np.cos(phi1-phi2)
-    
+    phi_diff = phi2-phi1
    
-    
-    res = optimize.minimize(lambda x: np.abs(deltaPhi(x,qt2,phi1,phi2)-dphi_choosen),qt1,bounds=[(qt1-0.1,qt1+0.1)])
-    if res.success:
-        qt1 = res.x[0]
-        qt2 = (-2*qt1*np.cos(phi1-phi2)+np.sqrt(4*qt1**2*np.cos(phi1-phi2)**2+4*(qt_pair2-qt1**2)))/2
-        
+    phi_diffmin = np.min([0.8*phi_diff,1.2*phi_diff])
+    phi_diffmax = np.max([0.8*phi_diff,1.2*phi_diff])
+    qt1min = qt1*0.8
+    qt1max = qt1*1.2
+    qt2min = qt2*0.8
+    qt2max = qt2*1.2
+    dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
+    if dphi < np.pi/4:
+        X,w = X[:N//4],w[:N//4]
+    elif dphi < 2*np.pi/4:
+        X,w = X[N//4:2*N//4],w[N//4:2*N//4]
+    elif dphi < 3*np.pi/4:
+        X,w = X[2*N//4:3*N//4],w[2*N//4:3*N//4]
     else:
-        res = optimize.minimize(lambda x: np.abs(deltaPhi(qt1,x,phi1,phi2)-dphi_choosen),qt2,bounds=[(qt2-0.1,qt2+0.1)])
-        if res.success:
-            qt2 = res.x[0]
-            qt1 = (-2*qt2*np.cos(phi1-phi2)+np.sqrt(4*qt2**2*np.cos(phi1-phi2)**2+4*(qt_pair2-qt2**2)))/2
+        X,w = X[3*N//4:],w[3*N//4:]
+    w = w/np.sum(w)
+    
+    dphi_choosen = np.random.choice(X,p=w)
+    qt_pair2 = qt1**2 + qt2**2 + 2*qt1*qt2*np.cos(phi_diff)
+    #L_aim.append(dphi_choosen)
 
-    return phi1,phi2,qt1,qt2
+    constrain = optimize.NonlinearConstraint(lambda x : np.abs((x**2+qt2**2+2*x*qt2*np.cos(phi_diff))-qt_pair2),0,0.1)
+    res1 = optimize.minimize(lambda x : np.abs(deltaPhi(x,qt2,phi1,phi_diff)-dphi_choosen),qt1,bounds=[(qt1min,qt1max)],tol=1e-5,constraints=constrain)
+    
+    if res1.fun < 1e-1:
+        qt1 = res1.x[0]
+        dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
+        #L_real.append(dphi)
+        #err.append(np.abs(dphi-dphi_choosen))
+        return phi1,phi2,qt1,qt2
+    else:
+        constrain = optimize.NonlinearConstraint(lambda x : np.abs((qt1**2+x**2+2*qt1*x*np.cos(phi_diff))-qt_pair2),0,0.1)
+        res2 = optimize.minimize(lambda x : np.abs(deltaPhi(qt1,x,phi1,phi_diff)-dphi_choosen),qt2,bounds=[(qt2min,qt2max)],tol=1e-5,constraints=constrain)
+        
+        qt2 = res2.x[0]
+        dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
+        #L_real.append(dphi)
+        #err.append(np.abs(dphi-dphi_choosen))
+        return phi1,phi2,qt1,qt2
+
+    
 
 def rapidity(p):
     return 0.5*np.log((p[0]+p[-1])/(p[0]-p[-1]))
@@ -357,10 +392,7 @@ def phi(p):
 
 def M(p):
     return np.sqrt(p[0]**2 - p[1]**2 - p[2]**2 - p[3]**2)
-LA = []
-LB = []
-LC = []
-
+X_list = []
 def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z):
     dict_mass = {11:0.000511,13:0.105658}
     g1,g2,l1,l2 = np.array(pext2)
@@ -374,18 +406,17 @@ def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z):
     m_pair = M(pair)
     x1 = mt/sqrt_s*(np.exp(y1)+np.exp(y2))
     x2 = mt/sqrt_s*(np.exp(-y1)+np.exp(-y2))
+    X_list.append(x1)
+    X_list.append(x2)
     z = 1/(np.exp(y1-y2)+1)
     qt = pt(pair)
     A = c.A_gammagamma(x1,x2,qt,Kt,ml,m_pair,RA,aA,Z)
     B = c.B_gammagamma(x1,x2,qt,Kt,ml,m_pair,RA,aA,Z)
     C = c.C_gammagamma(x1,x2,qt,Kt,ml,m_pair,RA,aA,Z)
     if np.abs(B>A) >1 or np.abs(C/A) > 1:
-        tqdm.tqdm.write("WARNING: B or C is larger than A")
+        tqdm.tqdm.write(f"WARNING: B or C is larger than A for x1={x1},x2={x2},qt={qt},Kt={Kt},ml={ml},m_pair={m_pair},RA={RA},aA={aA},Z={Z}")
         C = C/10
     w = A + B*np.cos(2*X) + C*np.cos(4*X)
-    LA.append(A)
-    LB.append(B)
-    LC.append(C)
     return w
 
 
@@ -422,7 +453,7 @@ def InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,sqrt_s,PID_lepton,RA,aA,wA,Z):
     for j in range(2,len(pext)):
         pext2[j]=boostl2(Q,PBOO1,PBOO2,pext[j])
         
-    if azimuth_distrib:
+    if azimuthalSmearing:
         X = np.linspace(0,np.pi,1000)
         prob = phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z)
         w = prob/np.sum(prob)
@@ -640,13 +671,12 @@ if nan_count > 0:
 if nan_count/nevent > 0.01:
     tqdm.tqdm.write("WARNING: The ratio of nan is too large, please check the input lhe files")
 
-if azimuth_distrib:
-    print("A_gammagamma = ",np.mean(LA))
-    print("B_gammagamma (/A_gammagamma) = ",np.mean(LB)/np.mean(LA))
-    print("C_gammagamma (/A_gammagamma) = ",np.mean(LC)/np.mean(LA))
-    bins = np.linspace(0,np.pi,100)
-    plt.hist(L_real,bins=bins,label='real',alpha=0.5)
-    plt.hist(L_aim,bins=bins,label='aim',alpha=0.5)
+if azimuthalSmearing:
+    """ plt.hist(L_aim,bins=100,alpha=0.5,label='aim')
+    plt.hist(L_real,bins=100,alpha=0.5,label='real')
+    plt.hist(err,bins=100,alpha=0.5,label='err') """
+    bins = np.logspace(-8,-1,100)
+    plt.hist(X_list,bins=bins)
     plt.legend()
     plt.show()
-
+    print(len([e for e in err if e > 0.1]))

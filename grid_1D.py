@@ -7,7 +7,7 @@ import scipy as scp
 import tqdm
 import configparser
 from multiprocessing import Pool
-
+from ast import literal_eval
 
 class grid1D:
     """
@@ -36,7 +36,7 @@ class grid1D:
         """
         config = configparser.ConfigParser()
         config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
-        WoodsSaxon = eval(config.get("Ion", "WoodsSaxon"))
+        WoodsSaxon = literal_eval(config.get("Ion", "WoodsSaxon"))
         self.ion = ion
         self.RA = WoodsSaxon[ion][0]/0.197
         self.aA = WoodsSaxon[ion][1]/0.197

@@ -5,6 +5,7 @@ import numpy as np
 import htmap
 import tqdm
 import configparser
+from ast import literal_eval
 config = configparser.ConfigParser()
 config.read('config.ini')
 
@@ -13,7 +14,7 @@ config.read('config.ini')
 def construct_grid(grid_name):
     path = config.get('General', 'path')
     ion = config.get('General', 'ion_name')
-    WoodsSaxon = eval(config.get("Ion", "WoodsSaxon"))
+    WoodsSaxon = literal_eval(config.get("Ion", "WoodsSaxon"))
     R = WoodsSaxon[ion][0]/0.197
     a = WoodsSaxon[ion][1]/0.197
     Z = WoodsSaxon[ion][3]
@@ -54,16 +55,24 @@ def construct_grid(grid_name):
 
     for X in result:
         i,j,res = X
-        values3D[i,j,:] = np.array(res)
+        values3D[j,:,i] = np.array(res)
         contruct_progress.update(1)
     contruct_progress.close()
+    
+    if values3D[values3D == 0].size > 0:
+        print("WARNING: Some values are still zero. Something may have gone wrong.")
+        return 0
+    
+    if values3D[np.isnan(values3D)].size > 0:
+        print("WARNING: Some values are NaN. Something may have gone wrong.")
+        return 0
     grid.values = values3D
 
     grid.write(path)
     print(f"Grid {grid_name} saved.")
     
     
-grid_names = ["qt2Hgammagamma","qt4Lgammagamma","qt4Ngammagamma","Fgammagamma"]
+grid_names = ["I4"]
 
 for grid in grid_names:
     construct_grid(grid)

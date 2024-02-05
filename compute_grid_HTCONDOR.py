@@ -4,6 +4,7 @@ import numpy as np
 import htmap
 import htcondor
 import tqdm
+from ast import literal_eval
 import configparser
 
 
@@ -14,7 +15,7 @@ def compute_grid(grid_name):
     config.read('config.ini')
     path = config.get('General', 'path')
     ion = config.get('General', 'ion_name')
-    WoodsSaxon = eval(config.get("Ion", "WoodsSaxon"))
+    WoodsSaxon = literal_eval(config.get("Ion", "WoodsSaxon"))
     R = WoodsSaxon[ion][0]/0.197
     a = WoodsSaxon[ion][1]/0.197
     Z = WoodsSaxon[ion][3]
@@ -37,7 +38,7 @@ def compute_grid(grid_name):
     htmap.settings["DELIVERY_METHOD"] = "assume"
     htmap.settings["MAP_OPTIONS.getenv"] = "True"
 
-    index = [(i,j) for i in range(Npointsx1) for j in range(Npointsx2)]
+    index = [(i,j) for i in range(Npointsqt) for j in range(Npointsx1)]
 
     input_files_py = [file for file in os.listdir(path) if (".py" in file) or (".ini" in file)]
     X1 = np.logspace(logx1min,logx1max,Npointsx1)
@@ -50,11 +51,11 @@ def compute_grid(grid_name):
         i, j = X
         print(f"Computing {grid_name} at ({i},{j})...")
         f = getattr(c_eval, f'{grid_name}_eval')
-        x1 = X1[i]
-        x2 = X2[j]
-        res = np.zeros_like(QT)
-        for i_qt, qt in enumerate(QT):
-            res[i_qt] = f([x1, x2, qt], RA, aA, Z)
+        qt = QT[i]
+        x1 = X1[j]
+        res = np.zeros_like(X2)
+        for k, x2 in enumerate(X2):
+            res[k] = f([x1, x2, qt], RA, aA, Z)
         return i, j, res
 
 
@@ -64,7 +65,7 @@ def compute_grid(grid_name):
         print(f"Previous {grid_name} deleted.")
 
     print(f"Building {grid_name}...")
-    with htmap.build_map(grid_func, tag=grid_name, map_options=htmap.MapOptions(fixed_input_files=input_files_py, custom_options={'JobFlavour': '"workday"', "MY.SendCredential": "true"})) as grid_builder:
+    with htmap.build_map(grid_func, tag=grid_name, map_options=htmap.MapOptions(fixed_input_files=input_files_py, custom_options={'JobFlavour': '"tomorrow"', "MY.SendCredential": "true"})) as grid_builder:
         for X in index:
             grid_builder(X, R, a, Z, grid_name)
     print(f"{grid_name} built.")
@@ -75,7 +76,7 @@ def compute_grid(grid_name):
 
 
 
-grid_names = ["I1","I2","I3","I4"]
+grid_names = ["I4"]
 
 for grid in grid_names:
     compute_grid(grid)
