@@ -467,6 +467,7 @@ def InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,sqrt_s,PID_lepton,RA,aA,wA,Z):
 headers=[]
 inits=[]
 events=[]
+
 ninit0=0
 ninit1=0
 firstinit=""
@@ -505,16 +506,20 @@ for i,file in enumerate(files):
             initQ=True
             headQ=False
             iinit=iinit+1
-            if i==0: inits.append(sline)
+            if i==0: 
+                inits.append(sline)
         elif headQ and i == 0:
             headers.append(sline)
         elif "</init>" in line or "</init " in line:
             initQ=False
             iinit=-1
-            if i==0: inits.append(sline)
+            if i==0: 
+                inits.append(sline)
         elif initQ:
             iinit=iinit+1
-            if iinit == 1:
+            if "<generator name=" in line:
+                inits.append(sline)
+            elif iinit == 1:
                 if i == 0:
                     firstinit=sline
                     ninit0=len(inits)
@@ -661,7 +666,7 @@ inits[ninit0]=firstinit
 text='\n'.join(headers)+'\n'
 text=text+'\n'.join(inits)+'\n'
 text=text+'\n'.join(events)
-
+text=text+'\n</LesHouchesEvents>'
 stream=open(outfile,'w')
 stream.write(text)
 stream.close()
