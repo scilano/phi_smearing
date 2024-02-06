@@ -10,6 +10,7 @@ smearing.py: Main file to use, edit a .lhe file given in input to compute the co
 grid_1D.py and grid_3D.py: Contain the grid class, used for the integration
 coefficient_eval.py: Compute the coefficient with integrals
 coefficient.py: Compute the coefficient with the grid if they exist
-compute_grid_HTCONDOR.py and construct_grid_HTCONDOR.py: Allow to compute the grids of coefficient using HTCONDOR.
+compute_grid_HTCONDOR.py and construct_grid_HTCONDOR.py: Allow to compute the grids of coefficient using HTCONDOR, supposed to be execute on a 
+                                                         computer with acces to a HTCONDOR system (e.g. lxplus)
 
 

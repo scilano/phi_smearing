@@ -8,8 +8,6 @@ import grid_3D
 import coefficient_eval as c_eval
 import configparser
 import matplotlib.pyplot as plt
-
-
 config = configparser.ConfigParser()
 config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
 path = config.get('General', 'path')
