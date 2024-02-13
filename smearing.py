@@ -13,6 +13,7 @@ import tqdm
 import matplotlib.pyplot as plt
 import configparser
 import coefficient as c
+from bisect import bisect_left
 
 Q2max=1.0 # 1 GeV^2 as the maximally allowed Q2
 ion_Form=1 # Form1: Q**2=kT**2+(mn*x)**2, Qmin**2=(mn*x)**2; 
@@ -33,6 +34,7 @@ files=[files[0]]
 nuclei=nuclei[0]
 nuclei=nuclei.replace('--beams=','')
 nuclei=[nucleus.rstrip().lstrip() for nucleus in nuclei.split(' ')]
+
 if not azimuthalSmearing:
     azimuthalSmearing = True
 else:
@@ -48,7 +50,8 @@ WoodsSaxon = eval(config.get("Ion","WoodsSaxon"))
 
 if azimuthalSmearing:
     if nuclei[0] != nuclei[1]:
-        raise ValueError("Azimuthal distribution is only implemented for symmetric collisions")
+        tqdm.tqdm.write("Azimuthal distribution is only implemented for symmetric collisions, azimuthal smearing is turned off")
+        azimuthalSmearing = False
     else:
         config.set("General","ion_name",nuclei[0])
 
@@ -321,7 +324,8 @@ def boostFromEcm(E1,E2,pext):
 
 def deltaPhi(pt1,pt2,phi1,phi_diff):
     phi2 = phi1 + phi_diff
-    d = np.abs(np.arctan2(pt1*np.sin(phi1)+pt2*np.sin(phi2),pt1*np.cos(phi1)+pt2*np.cos(phi2)) - phi1)
+    d = np.abs(np.arctan2(pt1*np.sin(phi1)+pt2*np.sin(phi2),pt1*np.cos(phi1)+pt2*np.cos(phi2)) - 
+               np.arctan2(pt1*np.sin(phi1)-pt2*np.sin(phi2),pt1*np.cos(phi1)-pt2*np.cos(phi2)))
     if d > np.pi:
         d = 2*np.pi - d
     return d
@@ -330,7 +334,9 @@ L_aim = []
 L_real = []
 err = []
 
+    
 def sufflePhi(pext2,X,w):
+    global QTMAX
     g1,g2,l1,l2 = np.array(pext2)
     N = len(X)
     qt1 = pt(l1)
@@ -338,46 +344,47 @@ def sufflePhi(pext2,X,w):
     phi1 = phi(l1)
     phi2 = phi(l2)
     phi_diff = phi2-phi1
-   
-    phi_diffmin = np.min([0.8*phi_diff,1.2*phi_diff])
-    phi_diffmax = np.max([0.8*phi_diff,1.2*phi_diff])
-    qt1min = qt1*0.8
-    qt1max = qt1*1.2
-    qt2min = qt2*0.8
-    qt2max = qt2*1.2
+
+    if phi_diff < 0:
+        phi_diffmin = 1.01*phi_diff
+        phi_diffmax = 0.99*phi_diff
+    else:
+        phi_diffmin = 0.99*phi_diff
+        phi_diffmax = 1.01*phi_diff
+    qt1min = qt1*0.1
+    qt1max = qt1*1.9
+    qt2min = qt2*0.1
+    qt2max = qt2*1.9
     dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
-    if dphi < np.pi/4:
+    
+    if dphi<np.pi/4:
         X,w = X[:N//4],w[:N//4]
-    elif dphi < 2*np.pi/4:
-        X,w = X[N//4:2*N//4],w[N//4:2*N//4]
+    elif dphi < np.pi/2:
+        X,w = X[N//4:N//2],w[N//4:N//2]
     elif dphi < 3*np.pi/4:
-        X,w = X[2*N//4:3*N//4],w[2*N//4:3*N//4]
+        X,w = X[N//2:3*N//4],w[N//2:3*N//4]
     else:
         X,w = X[3*N//4:],w[3*N//4:]
+        
     w = w/np.sum(w)
     
     dphi_choosen = np.random.choice(X,p=w)
     qt_pair2 = qt1**2 + qt2**2 + 2*qt1*qt2*np.cos(phi_diff)
-    #L_aim.append(dphi_choosen)
 
-    constrain = optimize.NonlinearConstraint(lambda x : np.abs((x**2+qt2**2+2*x*qt2*np.cos(phi_diff))-qt_pair2),0,0.1)
-    res1 = optimize.minimize(lambda x : np.abs(deltaPhi(x,qt2,phi1,phi_diff)-dphi_choosen),qt1,bounds=[(qt1min,qt1max)],tol=1e-5,constraints=constrain)
-    
-    if res1.fun < 1e-1:
-        qt1 = res1.x[0]
-        dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
-        #L_real.append(dphi)
-        #err.append(np.abs(dphi-dphi_choosen))
-        return phi1,phi2,qt1,qt2
-    else:
-        constrain = optimize.NonlinearConstraint(lambda x : np.abs((qt1**2+x**2+2*qt1*x*np.cos(phi_diff))-qt_pair2),0,0.1)
-        res2 = optimize.minimize(lambda x : np.abs(deltaPhi(qt1,x,phi1,phi_diff)-dphi_choosen),qt2,bounds=[(qt2min,qt2max)],tol=1e-5,constraints=constrain)
-        
-        qt2 = res2.x[0]
-        dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
-        #L_real.append(dphi)
-        #err.append(np.abs(dphi-dphi_choosen))
-        return phi1,phi2,qt1,qt2
+    qt_pair2min = 0.99**2*qt_pair2
+    qt_pair2max = 1.01**2*qt_pair2
+    constrain = optimize.NonlinearConstraint(lambda X : (X[0]**2+X[1]**2+2*X[0]*X[1]*np.cos(X[2])),qt_pair2min,qt_pair2max)
+    res = optimize.minimize(lambda X : np.abs(deltaPhi(X[0],X[1],phi1,X[2])-dphi_choosen),[qt1,qt2,phi_diff],
+                            bounds=[(qt1min,qt1max),(qt2min,qt2max),(phi_diffmin,phi_diffmax)],tol=1e-8,constraints=constrain)
+   
+    qt1,qt2,phi_diff = res.x
+    phi2 = phi1 + phi_diff
+    dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
+    """ L_aim.append(dphi_choosen)
+    L_real.append(dphi)
+    err.append(np.abs(dphi-dphi_choosen)) """
+    return phi1,phi2,qt1,qt2
+
 
     
 
@@ -457,7 +464,11 @@ def InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,sqrt_s,PID_lepton,RA,aA,wA,Z):
         X = np.linspace(0,np.pi,1000)
         prob = phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z)
         w = prob/np.sum(prob)
-        phi1,phi2,qt1,qt2 = sufflePhi(pext2,X,w)
+        pext3 = sufflePhi(pext2,X,w)
+        if pext3 is None:
+            return None
+        else:
+            phi1,phi2,qt1,qt2 = pext3
         pext2[2] = [pext2[2][0],qt1*np.cos(phi1),qt1*np.sin(phi1),pext2[2][3]]
         pext2[3] = [pext2[3][0],qt2*np.cos(phi2),qt2*np.sin(phi2),pext2[3][3]]
         
@@ -478,6 +489,7 @@ PID_beam2=0
 nan_count = 0
 nevent=0
 ilil=0
+count = 0 
 for i,file in enumerate(files):
     N_event=0
     
@@ -639,6 +651,7 @@ for i,file in enumerate(files):
                         Q2=np.sqrt(Q22)
                         # perform the initial momentum reshuffling
                         pext_new=InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,sqrt_s,PID_lepton,RA,aA,wA,Z)
+                        count = count + 1
                     if E_beam1 != E_beam2:
                         # boost back from the symmetric beams to antisymmetric beams
                         pext_new=boostFromEcm(E_beam1,E_beam2,pext_new)
@@ -670,18 +683,21 @@ text=text+'\n</LesHouchesEvents>'
 stream=open(outfile,'w')
 stream.write(text)
 stream.close()
+retry = count - nevent
 tqdm.tqdm.write(f"INFO: The final produced lhe file is {outfile}")
+if retry > nevent/10:
+    tqdm.tqdm.write(f"WARNING: A lot of retries were needed for the momentum reshuffling, please check the input lhe files and be careful with the results")
 if nan_count > 0:
     tqdm.tqdm.write(f"INFO: The ratio of nan is {nan_count/nevent} for {nevent} events")
 if nan_count/nevent > 0.01:
     tqdm.tqdm.write("WARNING: The ratio of nan is too large, please check the input lhe files")
 
-if azimuthalSmearing:
-    """ plt.hist(L_aim,bins=100,alpha=0.5,label='aim')
+""" if azimuthalSmearing:
+    plt.hist(L_aim,bins=100,alpha=0.5,label='aim')
     plt.hist(L_real,bins=100,alpha=0.5,label='real')
-    plt.hist(err,bins=100,alpha=0.5,label='err') """
+    plt.hist(err,bins=100,alpha=0.5,label='err')
+    plt.ylim(0,2*nevent/100)
     bins = np.logspace(-8,-1,100)
     plt.hist(X_list,bins=bins)
     plt.legend()
-    plt.show()
-    print(len([e for e in err if e > 0.1]))
+    plt.show() """
