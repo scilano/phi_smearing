@@ -2,7 +2,6 @@
 
 import sys
 import os
-import math
 import random
 from ast import literal_eval
 from scipy import optimize
@@ -13,7 +12,8 @@ import tqdm
 import matplotlib.pyplot as plt
 import configparser
 import coefficient as c
-from bisect import bisect_left
+import ROOT
+
 
 Q2max=1.0 # 1 GeV^2 as the maximally allowed Q2
 ion_Form=1 # Form1: Q**2=kT**2+(mn*x)**2, Qmin**2=(mn*x)**2; 
@@ -34,6 +34,9 @@ files=[files[0]]
 nuclei=nuclei[0]
 nuclei=nuclei.replace('--beams=','')
 nuclei=[nucleus.rstrip().lstrip() for nucleus in nuclei.split(' ')]
+
+A1 = float(''.join([a for a in nuclei[0] if a.isdigit()]))
+A2 = float(''.join([a for a in nuclei[1] if a.isdigit()]))
 
 if not azimuthalSmearing:
     azimuthalSmearing = True
@@ -89,7 +92,7 @@ def generate_Q2_epa_proton(x,Q2max):
     Q2min=mp2*x**2/(1-x)
 
     def xmaxvalue(Q2MAX):
-        val=(math.sqrt(Q2MAX*(4*mp2+Q2MAX))-Q2MAX)/(2*mp2)
+        val=(np.sqrt(Q2MAX*(4*mp2+Q2MAX))-Q2MAX)/(2*mp2)
         return val
 
     global p_x_array
@@ -101,11 +104,11 @@ def generate_Q2_epa_proton(x,Q2max):
 
     if Q2max <= Q2min or x >= xmaxvalue(Q2max) : return Q2max
 
-    logQ2oQ02max = math.log(Q2max/Q02)
-    logQ2oQ02min = math.log(Q2min/Q02)
+    logQ2oQ02max = np.log(Q2max/Q02)
+    logQ2oQ02min = np.log(Q2min/Q02)
 
     def distfun(xx,logQ2oQ02):
-        exp=math.exp(logQ2oQ02)
+        exp=np.exp(logQ2oQ02)
         funvalue=(-8*mp2**2*xx**2+exp**2*mupomuN**2*Q02**2*\
                        (2-2*xx+xx**2)+2*exp*mp2*Q02*(4-4*xx+mupomuN**2*xx**2))\
                        /(2*exp*(1+exp)**4*Q02*(4*mp2+exp*Q02))
@@ -115,7 +118,7 @@ def generate_Q2_epa_proton(x,Q2max):
         # we need to generate the grid first
         p_Q2max_save = Q2max
         xmaxQ2max=xmaxvalue(Q2max)
-        log10xmaxQ2maxm1=math.log10(1/xmaxQ2max)
+        log10xmaxQ2maxm1=np.log10(1/xmaxQ2max)
         p_x_array=[]
         p_xmax_array=[]
         p_fmax_array=[]
@@ -143,7 +146,7 @@ def generate_Q2_epa_proton(x,Q2max):
         c2 = interpolate.splrep(p_x_array,p_fmax_array)
         p_xmax_interp= lambda x: interpolate.splev(x,c1)
         p_fmax_interp= lambda x: interpolate.splev(x,c2)
-    log10xm1=math.log10(1/x)
+    log10xm1=np.log10(1/x)
     max_x = p_xmax_interp(log10xm1)
     max_fun = p_fmax_interp(log10xm1)
     logQ2oQ02now=logQ2oQ02min
@@ -153,7 +156,7 @@ def generate_Q2_epa_proton(x,Q2max):
         w=distfun(x,logQ2oQ02now)/max_fun
         r2=random.random() # a random float number between 0 and 1
         if r2 <= w: break
-    Q2v=math.exp(logQ2oQ02now)*Q02
+    Q2v=np.exp(logQ2oQ02now)*Q02
     return Q2v
 
 A_Q2max_save=[1,1]
@@ -181,7 +184,7 @@ def generate_Q2_epa_ion(ibeam,x,Q2max,RA,aA,wA):
     
     
     def xmaxvalue(Q2MAX):
-        val=(math.sqrt(Q2MAX*(4*mn2+Q2MAX))-Q2MAX)/(2*mn2)
+        val=(np.sqrt(Q2MAX*(4*mn2+Q2MAX))-Q2MAX)/(2*mn2)
         return val
 
     global A_x_array
@@ -193,17 +196,17 @@ def generate_Q2_epa_ion(ibeam,x,Q2max,RA,aA,wA):
 
     if Q2max <= Q2min or x >= xmaxvalue(Q2max) : return Q2max
 
-    logQ2oQ02max = math.log(Q2max/Q02)
-    logQ2oQ02min = math.log(Q2min/Q02)
+    logQ2oQ02max = np.log(Q2max/Q02)
+    logQ2oQ02min = np.log(Q2min/Q02)
 
     # set rhoA0=1 (irrelvant for this global factor)
     def FchA1(q):
-        piqaA=math.pi*q*aAA
-        funval=4*math.pi**4*aAA**3/(piqaA**2*math.sinh(piqaA)**2)*\
-            (piqaA*math.cosh(piqaA)*math.sin(q*RAA)*(1-wA*aAA**2/RAA**2*\
-            (6*math.pi**2/math.sinh(piqaA)**2+math.pi**2-3*RAA**2/aAA**2))\
-            -q*RAA*math.sinh(piqaA)*math.cos(q*RAA)*(1-wA*aAA**2/RAA**2*\
-            (6*math.pi**2/math.sinh(piqaA)**2+3*math.pi**2-RAA**2/aAA**2)))
+        piqaA=np.pi*q*aAA
+        funval=4*np.pi**4*aAA**3/(piqaA**2*np.sinh(piqaA)**2)*\
+            (piqaA*np.cosh(piqaA)*np.sin(q*RAA)*(1-wA*aAA**2/RAA**2*\
+            (6*np.pi**2/np.sinh(piqaA)**2+np.pi**2-3*RAA**2/aAA**2))\
+            -q*RAA*np.sinh(piqaA)*np.cos(q*RAA)*(1-wA*aAA**2/RAA**2*\
+            (6*np.pi**2/np.sinh(piqaA)**2+3*np.pi**2-RAA**2/aAA**2)))
         return funval
 
     # set rhoA0=1 (irrelvant for this global factor
@@ -211,17 +214,17 @@ def generate_Q2_epa_ion(ibeam,x,Q2max,RA,aA,wA):
         funval=0
         # only keep the first two terms
         for n in range(1,3):
-            funval=funval+(-1)**(n-1)*n*math.exp(-n*RAA/aAA)/(n**2+q**2*aAA**2)**2*\
+            funval=funval+(-1)**(n-1)*n*np.exp(-n*RAA/aAA)/(n**2+q**2*aAA**2)**2*\
                 (1+12*wA*aAA**2/RAA**2*(n**2-q**2*aAA**2)/(n**2+q**2*aAA**2)**2)
-        funval=funval*8*math.pi*aAA**3
+        funval=funval*8*np.pi*aAA**3
         return funval
 
     def distfun(xx,logQ2oQ02):
-        exp=math.exp(logQ2oQ02)*Q02
+        exp=np.exp(logQ2oQ02)*Q02
         if ion_Form == 2:
-            FchA=FchA1(math.sqrt((1-xx)*exp))+FchA2(math.sqrt((1-xx)*exp))
+            FchA=FchA1(np.sqrt((1-xx)*exp))+FchA2(np.sqrt((1-xx)*exp))
         else:
-            FchA=FchA1(math.sqrt(exp))+FchA2(math.sqrt(exp))
+            FchA=FchA1(np.sqrt(exp))+FchA2(np.sqrt(exp))
         funvalue=(1-Q2min/exp)*FchA**2
         return funvalue
     
@@ -230,7 +233,7 @@ def generate_Q2_epa_ion(ibeam,x,Q2max,RA,aA,wA):
         tqdm.tqdm.write("INFO: Generate the grid")
         A_Q2max_save[ibeam] = Q2max
         xmaxQ2max=xmaxvalue(Q2max)
-        log10xmaxQ2maxm1=math.log10(1/xmaxQ2max)
+        log10xmaxQ2maxm1=np.log10(1/xmaxQ2max)
         A_x_array[ibeam]=[]
         A_xmax_array[ibeam]=[]
         A_fmax_array[ibeam]=[]
@@ -259,7 +262,7 @@ def generate_Q2_epa_ion(ibeam,x,Q2max,RA,aA,wA):
         A_xmax_interp[ibeam]=lambda x: interpolate.splev(x,c1)
         A_fmax_interp[ibeam]=lambda x: interpolate.splev(x,c2)
         tqdm.tqdm.write("INFO: Grid generated")
-    log10xm1=math.log10(1/x)
+    log10xm1=np.log10(1/x)
     max_x = A_xmax_interp[ibeam](log10xm1)
     max_fun = A_fmax_interp[ibeam](log10xm1)
     logQ2oQ02now=logQ2oQ02min
@@ -276,7 +279,7 @@ def generate_Q2_epa_ion(ibeam,x,Q2max,RA,aA,wA):
             tqdm.tqdm.write("logQ2oQ02max,logQ2oQ02min,w =" ,logQ2oQ02max,logQ2oQ02min,w)
         if n_rand == int(1e7):
             tqdm.tqdm.write("ERROR: It's impossible")
-    Q2v=math.exp(logQ2oQ02now)*Q02
+    Q2v=np.exp(logQ2oQ02now)*Q02
     return Q2v
 
 #stream=open("Q2.dat",'w')
@@ -306,7 +309,7 @@ def boostl2(Q,PBOO1,PBOO2,P):
     return PLB
 
 def boostToEcm(E1,E2,pext):
-    Ecm=2*math.sqrt(E1*E2)
+    Ecm=2*np.sqrt(E1*E2)
     PBOO=[E1+E2,0,0,E2-E1]
     pext2=copy.deepcopy(pext)
     for j in range(len(pext)):
@@ -314,7 +317,7 @@ def boostToEcm(E1,E2,pext):
     return pext2
 
 def boostFromEcm(E1,E2,pext):
-    Ecm=2*math.sqrt(E1*E2)
+    Ecm=2*np.sqrt(E1*E2)
     PBOO=[E1+E2,0,0,E1-E2]
     pext2=copy.deepcopy(pext)
     for j in range(len(pext)):
@@ -336,7 +339,6 @@ err = []
 
     
 def sufflePhi(pext2,X,w):
-    global QTMAX
     g1,g2,l1,l2 = np.array(pext2)
     N = len(X)
     qt1 = pt(l1)
@@ -351,10 +353,10 @@ def sufflePhi(pext2,X,w):
     else:
         phi_diffmin = 0.99*phi_diff
         phi_diffmax = 1.01*phi_diff
-    qt1min = qt1*0.1
-    qt1max = qt1*1.9
-    qt2min = qt2*0.1
-    qt2max = qt2*1.9
+    qt1min = qt1*0.8
+    qt1max = qt1*1.2
+    qt2min = qt2*0.8
+    qt2max = qt2*1.2
     dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
     
     if dphi<np.pi/4:
@@ -371,16 +373,17 @@ def sufflePhi(pext2,X,w):
     dphi_choosen = np.random.choice(X,p=w)
     qt_pair2 = qt1**2 + qt2**2 + 2*qt1*qt2*np.cos(phi_diff)
 
-    qt_pair2min = 0.99**2*qt_pair2
-    qt_pair2max = 1.01**2*qt_pair2
+    qt_pair2min = qt_pair2 - 1e-10
+    qt_pair2max = qt_pair2 + 1e-10
+    
     constrain = optimize.NonlinearConstraint(lambda X : (X[0]**2+X[1]**2+2*X[0]*X[1]*np.cos(X[2])),qt_pair2min,qt_pair2max)
     res = optimize.minimize(lambda X : np.abs(deltaPhi(X[0],X[1],phi1,X[2])-dphi_choosen),[qt1,qt2,phi_diff],
                             bounds=[(qt1min,qt1max),(qt2min,qt2max),(phi_diffmin,phi_diffmax)],tol=1e-8,constraints=constrain)
    
     qt1,qt2,phi_diff = res.x
     phi2 = phi1 + phi_diff
-    dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
-    """ L_aim.append(dphi_choosen)
+    """dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
+    L_aim.append(dphi_choosen)
     L_real.append(dphi)
     err.append(np.abs(dphi-dphi_choosen)) """
     return phi1,phi2,qt1,qt2
@@ -399,6 +402,8 @@ def phi(p):
 
 def M(p):
     return np.sqrt(p[0]**2 - p[1]**2 - p[2]**2 - p[3]**2)
+
+
 X_list = []
 def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z):
     dict_mass = {11:0.000511,13:0.105658}
@@ -427,28 +432,28 @@ def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z):
     return w
 
 
-def InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,sqrt_s,PID_lepton,RA,aA,wA,Z):
+def InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,PID_lepton,RA,aA,wA,Z):
     r1 = np.random.random()  # a random float number between 0 and 1
     r2 = np.random.random()  # a random float number between 0 and 1
-    ph1 = 2 * math.pi * r1
-    ph2 = 2 * math.pi * r2
+    ph1 = 2 * np.pi * r1
+    ph2 = 2 * np.pi * r2
 
-    Kperp2 = Q1 ** 2 + Q2 ** 2 + 2 * Q1 * Q2 * math.cos(ph1 - ph2)
+    Kperp2 = Q1 ** 2 + Q2 ** 2 + 2 * Q1 * Q2 * np.cos(ph1 - ph2)
     Kperp2max = Ecm**2*(min(1,x1/x2,x2/x1)-x1*x2)
     if Kperp2 >= Kperp2max:
         return None
-    x1bar=math.sqrt(x1/x2*Kperp2/Ecm**2+x1**2)
-    x2bar=math.sqrt(x2/x1*Kperp2/Ecm**2+x2**2)
+    x1bar=np.sqrt(x1/x2*Kperp2/Ecm**2+x1**2)
+    x2bar=np.sqrt(x2/x1*Kperp2/Ecm**2+x2**2)
     if x1bar >= 1.0 or x2bar >= 1.0: return None
     pext2=copy.deepcopy(pext)
     # new initial state
     pext2[0][0]=Ecm/2*x1bar
-    pext2[0][1]=Q1*math.cos(ph1)
-    pext2[0][2]=Q1*math.sin(ph1)
+    pext2[0][1]=Q1*np.cos(ph1)
+    pext2[0][2]=Q1*np.sin(ph1)
     pext2[0][3]=Ecm/2*x1bar
     pext2[1][0]=Ecm/2*x2bar
-    pext2[1][1]=Q2*math.cos(ph2)
-    pext2[1][2]=Q2*math.sin(ph2)
+    pext2[1][1]=Q2*np.cos(ph2)
+    pext2[1][2]=Q2*np.sin(ph2)
     pext2[1][3]=-Ecm/2*x2bar
     # new final state
     PBOO1=[0,0,0,0]
@@ -456,23 +461,30 @@ def InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,sqrt_s,PID_lepton,RA,aA,wA,Z):
     for j in range(4):
         PBOO1[j]=pext[0][j]+pext[1][j]
         PBOO2[j]=pext2[0][j]+pext2[1][j]
-    Q=math.sqrt(x1*x2)*Ecm
+    Q=np.sqrt(x1*x2)*Ecm
     for j in range(2,len(pext)):
-        pext2[j]=boostl2(Q,PBOO1,PBOO2,pext[j])
-        
+        pext2[j]=boostl2(Q,PBOO1,PBOO2,pext[j])        
+    
+    pext3 = pext2.copy()
     if azimuthalSmearing:
         X = np.linspace(0,np.pi,1000)
-        prob = phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z)
+        prob = phi_distribution(X,pext2,Ecm,PID_lepton,RA,aA,wA,Z)
         w = prob/np.sum(prob)
-        pext3 = sufflePhi(pext2,X,w)
-        if pext3 is None:
+        results = sufflePhi(pext2,X,w)
+        if results is None:
             return None
         else:
-            phi1,phi2,qt1,qt2 = pext3
-        pext2[2] = [pext2[2][0],qt1*np.cos(phi1),qt1*np.sin(phi1),pext2[2][3]]
-        pext2[3] = [pext2[3][0],qt2*np.cos(phi2),qt2*np.sin(phi2),pext2[3][3]]
+            phi1,phi2,qt1,qt2 = results
+        #Correction to verify off-shellness and momentum conservation
+        m1 = M(pext2[2])
+        m2 = M(pext2[3])
+        alpha1 = np.sqrt((m1**2+qt1**2)/(pext2[2][0]**2-pext2[2][3]**2))
+        alpha2 = np.sqrt((m2**2+qt2**2)/(pext2[3][0]**2-pext2[3][3]**2))
+        ang =  np.arctan2(Q1*np.sin(ph1) + Q2*np.sin(ph2) ,Q1*np.cos(ph1) + Q2*np.cos(ph2)) - np.arctan2(qt1*np.sin(phi1)+qt2*np.sin(phi2),qt1*np.cos(phi1) + qt2*np.cos(phi2))
+        pext3[2] = [alpha1*pext2[2][0],qt1*np.cos(phi1+ang),qt1*np.sin(phi1+ang),alpha1*pext2[2][3]]
+        pext3[3] = [alpha2*pext2[3][0],qt2*np.cos(phi2+ang),qt2*np.sin(phi2+ang),alpha2*pext2[3][3]]
         
-    return pext2
+    return pext3
 
 
 headers=[]
@@ -489,7 +501,7 @@ PID_beam2=0
 nan_count = 0
 nevent=0
 ilil=0
-count = 0 
+count = 0
 for i,file in enumerate(files):
     N_event=0
     
@@ -540,8 +552,8 @@ for i,file in enumerate(files):
                     ff=firstinit.strip().split()
                     PID_beam1=int(ff[0])
                     PID_beam2=int(ff[1])
-                    E_beam1=float(ff[2])
-                    E_beam2=float(ff[3])
+                    E_beam1=float(ff[2])/A1
+                    E_beam2=float(ff[3])/A2
                     if abs(PID_beam1) != 2212 or abs(PID_beam2) != 2212:
                         tqdm.tqdm.write("Not a proton-proton collider")
                         raise ValueError
@@ -608,7 +620,7 @@ for i,file in enumerate(files):
                     # get the momenta and masses
                     x1=this_event[0][9]/E_beam1
                     x2=this_event[1][9]/E_beam2
-                    if math.isnan(x1) or math.isnan(x2):
+                    if np.isnan(x1) or np.isnan(x2):
                         if nan_count < 5:
                             tqdm.tqdm.write("Warning: x1 or x2 is nan")
                         if nan_count == 5:
@@ -627,7 +639,6 @@ for i,file in enumerate(files):
                     if E_beam1 != E_beam2:
                         pext=boostToEcm(E_beam1,E_beam2,pext)
                     Ecm=2*np.sqrt(E_beam1*E_beam2)
-                    sqrt_s = Ecm/np.sqrt((float(nuclei[0][2:])*float(nuclei[1][2:])))
                     pext_new = None
                     Q1=0
                     Q2=0
@@ -650,7 +661,7 @@ for i,file in enumerate(files):
                         Q1=np.sqrt(Q12)
                         Q2=np.sqrt(Q22)
                         # perform the initial momentum reshuffling
-                        pext_new=InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,sqrt_s,PID_lepton,RA,aA,wA,Z)
+                        pext_new=InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,PID_lepton,RA,aA,wA,Z)
                         count = count + 1
                     if E_beam1 != E_beam2:
                         # boost back from the symmetric beams to antisymmetric beams
@@ -664,7 +675,10 @@ for i,file in enumerate(files):
                         this_event[j][6]=pext_new[j][1]
                         this_event[j][7]=pext_new[j][2]
                         this_event[j][8]=pext_new[j][3]
-                        newsline="      %d    %d     %d    %d    %d    %d  %12.7e  %12.7e  %12.7e  %12.7e  %12.7e  %12.7e  %12.7e"%tuple(this_event[j])
+                        #Correct the issue with precision
+                        #newsline_old="      %d    %d     %d    %d    %d    %d  %12.7e  %12.7e  %12.7e  %12.7e  %12.7e  %12.7e  %12.7e"%tuple(this_event[j])
+                        newsline = "      %d    %d     %d    %d    %d    %d  %12.16e  %12.16e  %12.16e  %12.16e  %12.16e  %12.16e  %12.16e"%tuple(this_event[j])
+                        
                         events.append(newsline)
                 continue
             events.append(sline)
@@ -691,7 +705,6 @@ if nan_count > 0:
     tqdm.tqdm.write(f"INFO: The ratio of nan is {nan_count/nevent} for {nevent} events")
 if nan_count/nevent > 0.01:
     tqdm.tqdm.write("WARNING: The ratio of nan is too large, please check the input lhe files")
-
 """ if azimuthalSmearing:
     plt.hist(L_aim,bins=100,alpha=0.5,label='aim')
     plt.hist(L_real,bins=100,alpha=0.5,label='real')
