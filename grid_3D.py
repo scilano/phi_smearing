@@ -152,5 +152,10 @@ class grid3D:
         """
         if self.interpolated == False:
             self.interpolate()
+        try:
+            val = float(self.interpolatefun(x))
+            return float(self.interpolatefun(x))
+        except:
+            raise ValueError(f"Value {x} out of grid bounds:({self.axis[0][0]}-{self.axis[0][-1]}) ({self.axis[1][0]}-{self.axis[1][-1]}) ({self.axis[2][0]}-{self.axis[2][-1]})")
+            
         
-        return float(self.interpolatefun(x))

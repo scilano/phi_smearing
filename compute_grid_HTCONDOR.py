@@ -76,7 +76,7 @@ def compute_grid(grid_name):
 
 
 
-grid_names = ["I4"]
+grid_names = ["I3","I4"]
 
 for grid in grid_names:
     compute_grid(grid)

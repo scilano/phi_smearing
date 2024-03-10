@@ -72,7 +72,7 @@ def construct_grid(grid_name):
     print(f"Grid {grid_name} saved.")
     
     
-grid_names = ["I4"]
+grid_names = ["I3","I4"]
 
 for grid in grid_names:
     construct_grid(grid)

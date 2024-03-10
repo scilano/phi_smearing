@@ -10,11 +10,170 @@ import grid_1D
 import configparser
 import tqdm
 import mpmath as mp
+from ast import literal_eval
 
 config = configparser.ConfigParser()
 config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
 ion = config.get("General","ion_name")
 
+
+def qt4Lgammagamma_integrand(x1,x2,pt1,qt,th,RA,aA,Z):
+    #N*(pt1**2*pt2**2)
+    qt2 = qt*qt
+    pt12 = pt1*pt1
+    pt22 = pt12 + qt2 - 2*pt1*qt*np.cos(th)
+    N = photon_flux(x1,pt12,RA,aA,Z)*photon_flux(x2,pt22,RA,aA,Z)
+    return pt12*pt22*N
+
+def qt4Lgammagamma_eval(X,RA,aA,Z):
+    x1,x2,qt = X
+    if qt < 0.05:
+        N_theta = 10
+    if 0.05 <= qt < 0.5:
+        N_theta = 50
+    if 0.5 <= qt:
+        N_theta = 200
+    N_pt = 3000
+    
+    TH1 = np.linspace(0,2*np.pi,N_theta)
+    PT1_2 = np.logspace(-1,2,N_pt-200)
+    PT1_1 = np.logspace(-5,-1,200,endpoint=False)
+    PT1 = np.append(PT1_1,PT1_2)
+    grid_qt4Lgammagamma_th = grid_1D.grid1D(ion,N_theta)
+    grid_qt4Lgammagamma_th.set_axis(TH1)
+    for i,th1 in enumerate(TH1):
+        grid_qt4Lgammagamma_pt = grid_1D.grid1D(ion,N_pt)
+        grid_qt4Lgammagamma_pt.set_axis(PT1)
+        for j,pt1 in enumerate(PT1):
+            grid_qt4Lgammagamma_pt.values[j] = pt1*qt4Lgammagamma_integrand(x1,x2,pt1,qt,th1,RA,aA,Z)
+        grid_qt4Lgammagamma_th.values[i] = grid_peak_integration(grid_qt4Lgammagamma_pt)
+    I = scp.integrate.quad(lambda th1: grid_qt4Lgammagamma_th.evaluate(th1),0,2*np.pi,full_output=1)
+    
+    #if the integration didn't work (because too much oscilation probably), try other method
+    if I[2]["last"] == 50:
+        res = grid_peak_integration(grid_qt4Lgammagamma_th)
+    else: res = I[0]
+    return res
+
+def qt2Hgammagamma_integrand(x1,x2,pt1,qt,th,RA,aA,Z):
+    qt2 = qt*qt
+    pt12 = pt1*pt1
+    cth = np.cos(th)
+    pt22 = pt12 + qt2 - 2*pt1*qt*cth
+    N = photon_flux(x1,pt12,RA,aA,Z)*photon_flux(x2,pt22,RA,aA,Z)
+    A = 0
+    B = 0
+    if (qt2*pt22 != 0):
+        A = (qt2-qt*pt1*cth)**2/(qt2*pt22)
+    if (pt12*qt2 != 0):
+        B = (pt1*qt*cth)**2/(pt12*qt2)
+    return (2*(A + B)-2)*N
+
+def qt2Hgammagamma_eval(X,RA,aA,Z):
+    x1,x2,qt = X
+    if qt < 0.05:
+        N_theta = 10
+    if 0.05 <= qt < 0.5:
+        N_theta = 50
+    if 0.5 <= qt:
+        N_theta = 200
+    N_pt = 3000
+    
+    TH1 = np.linspace(0,2*np.pi,N_theta)
+    PT1_2 = np.logspace(-1,2,N_pt-200)
+    PT1_1 = np.logspace(-5,-1,200,endpoint=False)
+    PT1 = np.append(PT1_1,PT1_2)
+    grid_qt2Hgammagamma_th = grid_1D.grid1D(ion,N_theta)
+    grid_qt2Hgammagamma_th.set_axis(TH1)
+    for i,th1 in enumerate(TH1):
+        grid_qt2Hgammagamma_pt = grid_1D.grid1D(ion,N_pt)
+        grid_qt2Hgammagamma_pt.set_axis(PT1)
+        for j,pt1 in enumerate(PT1):
+            grid_qt2Hgammagamma_pt.values[j] = pt1*qt2Hgammagamma_integrand(x1,x2,pt1,qt,th1,RA,aA,Z)
+        grid_qt2Hgammagamma_th.values[i] = grid_peak_integration(grid_qt2Hgammagamma_pt)
+    I = scp.integrate.quad(lambda th1: grid_qt2Hgammagamma_th.evaluate(th1),0,2*np.pi,full_output=1)
+    
+    #if the integration didn't work (beacause too much oscilation probably), try other method
+    if I[2]["last"] == 50:
+        res = grid_peak_integration(grid_qt2Hgammagamma_th)
+    else: res = I[0]
+    return res
+
+def qt4Ngammagamma_integrand(x1,x2,pt1,qt,th,RA,aA,Z):
+    #(2(pt1@pt2)**2 - (pt1**2*pt2**2))*N
+    pt12 = pt1*pt1
+    qt2 = qt*qt
+    pt22 = pt12 + qt2 - 2*pt1*qt*np.cos(th)
+    pt1pt2 = pt1*qt*np.cos(th)- pt12 
+    N = photon_flux(x1,pt12,RA,aA,Z)*photon_flux(x2,pt22,RA,aA,Z)
+    return (2*pt1pt2*pt1pt2 - pt12*pt22)*N
+ 
+def qt4Ngammagamma_eval(X,RA,aA,Z):
+    x1,x2,qt = X
+    if qt < 0.05:
+        N_theta = 10
+    if 0.05 <= qt < 0.5:
+        N_theta = 50
+    if 0.5 <= qt:
+        N_theta = 200
+    N_pt = 3000
+    
+    TH1 = np.linspace(0,2*np.pi,N_theta)
+    PT1_2 = np.logspace(-1,2,N_pt-200)
+    PT1_1 = np.logspace(-5,-1,200,endpoint=False)
+    PT1 = np.append(PT1_1,PT1_2)
+    grid_qt4Ngammagamma_th = grid_1D.grid1D(ion,N_theta)
+    grid_qt4Ngammagamma_th.set_axis(TH1)
+    for i,th1 in enumerate(TH1):
+        grid_qt4Ngammagamma_pt = grid_1D.grid1D(ion,N_pt)
+        grid_qt4Ngammagamma_pt.set_axis(PT1)
+        for j,pt1 in enumerate(PT1):
+            grid_qt4Ngammagamma_pt.values[j] = pt1*qt4Ngammagamma_integrand(x1,x2,pt1,qt,th1,RA,aA,Z)
+        grid_qt4Ngammagamma_th.values[i] = grid_peak_integration(grid_qt4Ngammagamma_pt)
+    I = scp.integrate.quad(lambda th1: grid_qt4Ngammagamma_th.evaluate(th1),0,2*np.pi,full_output=1)
+    
+    #if the integration didn't work (beacause too much oscilation probably), try other method
+    if I[2]["last"] == 50:
+        res = grid_peak_integration(grid_qt4Ngammagamma_th)
+    else: res = I[0]
+    return res
+
+def Fgammagamma_integrand(x1,x2,pt1,qt,th,RA,aA,Z):
+    pt12 = pt1*pt1
+    qt2 = qt*qt
+    pt22 = pt12 + qt2 - 2*pt1*qt*np.cos(th)
+    return photon_flux(x1,pt12,RA,aA,Z)*photon_flux(x2,pt22,RA,aA,Z)
+
+def Fgammagamma_eval(X,RA,aA,Z):
+    x1,x2,qt = X
+    if qt < 0.05:
+        N_theta = 10
+    if 0.05 <= qt < 0.5:
+        N_theta = 50
+    if 0.5 <= qt:
+        N_theta = 200
+    
+    N_pt = 3000
+    TH1 = np.linspace(0,2*np.pi,N_theta)
+    PT1_2 = np.logspace(-1,2,N_pt-200)
+    PT1_1 = np.logspace(-5,-1,200,endpoint=False)
+    PT1 = np.append(PT1_1,PT1_2)
+    grid_Fgammagamma_th = grid_1D.grid1D(ion,N_theta)
+    grid_Fgammagamma_th.set_axis(TH1)
+    for i,th1 in enumerate(TH1):
+        grid_Fgammagamma_pt = grid_1D.grid1D(ion,N_pt)
+        grid_Fgammagamma_pt.set_axis(PT1)
+        for j,pt1 in enumerate(PT1):
+            grid_Fgammagamma_pt.values[j] = pt1*Fgammagamma_integrand(x1,x2,pt1,qt,th1,RA,aA,Z)
+        grid_Fgammagamma_th.values[i] = grid_peak_integration(grid_Fgammagamma_pt)
+    I = scp.integrate.quad(lambda th1: grid_Fgammagamma_th.evaluate(th1),0,2*np.pi,full_output=1)
+
+    #if the integration didn't work (beacause too much oscilation probably), try other method
+    if I[2]["last"] == 50:
+        res = grid_peak_integration(grid_Fgammagamma_th,plot=False)
+    else: res = I[0]
+    
+    return res
 
 def formfactor(k, RA, aA, Z):
     if k*np.pi*aA < 250:
@@ -230,27 +389,23 @@ def grid_peak_integration(grid,plot=False):
     return I
 
 def main():
-    L =[0.0027701355532506783,0.002371241508120984,0.01427330393200141,0.22506577178010387,0.000511,0.5124664359554223,6.38,0.535,79]
-    x1,x2,qt,Kt,ml,m_pair,RA,aA,Z =L
-    qt = 1e-3
-    qt2 = qt*qt
-    PT1 = np.logspace(-6,1,1500)
-    prod = np.zeros(len(PT1))
-    L = np.zeros(len(PT1))
-    H = np.zeros((len(PT1)))
-    cth = np.cos(np.pi/8)
+    WoodsSaxon = literal_eval(config.get("Ion", "WoodsSaxon"))
+    ion = 'Pb208'
+    R,a,Z = WoodsSaxon[ion][0]/0.197,WoodsSaxon[ion][1]/0.197,WoodsSaxon[ion][3]
+    x1 = 0.01
+    x2 = 0.01
+    QT = np.logspace(-5,1,2000)
+    X = np.zeros_like(QT)
+    for i,qt in enumerate(QT):
+        X[i] = I3_integrand(x1,x2,qt,0.1,1,R,a,Z)
     
-    for i,pt1 in enumerate(PT1):
-        pt12 = pt1*pt1
-        pt22 = pt12 + qt2 - 2*pt1*qt*cth
-        L[i] = I4_integrand(x1,x2,pt1,qt,np.pi/5,RA,aA,Z)
-        H[i] = I3_integrand(x1,x2,pt1,qt,np.pi/5,RA,aA,Z)
-    plt.plot(PT1,np.abs(L),label="L")
-    plt.plot(PT1,np.abs(H),label="H")
-    plt.legend()
-    plt.loglog()
+    plt.plot(QT,X)
+    plt.semilogx()
     plt.show()
+    
 
+    
+      
     
     return 0
 

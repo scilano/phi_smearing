@@ -12,7 +12,6 @@ import tqdm
 import matplotlib.pyplot as plt
 import configparser
 import coefficient as c
-import ROOT
 
 
 Q2max=1.0 # 1 GeV^2 as the maximally allowed Q2
@@ -55,8 +54,7 @@ if azimuthalSmearing:
     if nuclei[0] != nuclei[1]:
         tqdm.tqdm.write("Azimuthal distribution is only implemented for symmetric collisions, azimuthal smearing is turned off")
         azimuthalSmearing = False
-    else:
-        config.set("General","ion_name",nuclei[0])
+
 
 if nuclei[0] != 'p' and nuclei[0] not in WoodsSaxon.keys():
     raise ValueError('do not know the first beam type = %s'%nuclei[0])
@@ -276,7 +274,7 @@ def generate_Q2_epa_ion(ibeam,x,Q2max,RA,aA,wA):
         n_rand+=1
         if n_rand == int(1e6):
             tqdm.tqdm.write("WARNING: It's maybe impossible to find a correct answer")
-            tqdm.tqdm.write("logQ2oQ02max,logQ2oQ02min,w =" ,logQ2oQ02max,logQ2oQ02min,w)
+            tqdm.tqdm.write(f"logQ2oQ02max,logQ2oQ02min,w ={logQ2oQ02max},{logQ2oQ02min},{w}")
         if n_rand == int(1e7):
             tqdm.tqdm.write("ERROR: It's impossible")
     Q2v=np.exp(logQ2oQ02now)*Q02
@@ -327,7 +325,7 @@ def boostFromEcm(E1,E2,pext):
 
 def deltaPhi(pt1,pt2,phi1,phi_diff):
     phi2 = phi1 + phi_diff
-    d = np.abs(np.arctan2(pt1*np.sin(phi1)+pt2*np.sin(phi2),pt1*np.cos(phi1)+pt2*np.cos(phi2)) - 
+    d = np.abs(np.arctan2(pt1*np.sin(phi1)+pt2*np.sin(phi2),pt1*np.cos(phi1)+pt2*np.cos(phi2)) -
                np.arctan2(pt1*np.sin(phi1)-pt2*np.sin(phi2),pt1*np.cos(phi1)-pt2*np.cos(phi2)))
     if d > np.pi:
         d = 2*np.pi - d
@@ -348,11 +346,11 @@ def sufflePhi(pext2,X,w):
     phi_diff = phi2-phi1
 
     if phi_diff < 0:
-        phi_diffmin = 1.01*phi_diff
-        phi_diffmax = 0.99*phi_diff
+        phi_diffmin = 1.05*phi_diff
+        phi_diffmax = 0.95*phi_diff
     else:
-        phi_diffmin = 0.99*phi_diff
-        phi_diffmax = 1.01*phi_diff
+        phi_diffmin = 0.95*phi_diff
+        phi_diffmax = 1.05*phi_diff
     qt1min = qt1*0.8
     qt1max = qt1*1.2
     qt2min = qt2*0.8
@@ -382,10 +380,10 @@ def sufflePhi(pext2,X,w):
    
     qt1,qt2,phi_diff = res.x
     phi2 = phi1 + phi_diff
-    """dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
+    dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
     L_aim.append(dphi_choosen)
     L_real.append(dphi)
-    err.append(np.abs(dphi-dphi_choosen)) """
+    err.append(np.abs(dphi-dphi_choosen))
     return phi1,phi2,qt1,qt2
 
 
@@ -401,11 +399,15 @@ def phi(p):
     return np.arctan2(p[2],p[1])
 
 def M(p):
-    return np.sqrt(p[0]**2 - p[1]**2 - p[2]**2 - p[3]**2)
+    M2 = p[0]**2 - p[1]**2 - p[2]**2 - p[3]**2
+    return np.sqrt(np.abs(M2))
 
 
 X_list = []
-def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z):
+A_list = []
+B_list = []
+C_list = []
+def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z,ion):
     dict_mass = {11:0.000511,13:0.105658}
     g1,g2,l1,l2 = np.array(pext2)
     pair = g1+g2
@@ -418,21 +420,26 @@ def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z):
     m_pair = M(pair)
     x1 = mt/sqrt_s*(np.exp(y1)+np.exp(y2))
     x2 = mt/sqrt_s*(np.exp(-y1)+np.exp(-y2))
-    X_list.append(x1)
+    """ X_list.append(x1)
     X_list.append(x2)
-    z = 1/(np.exp(y1-y2)+1)
+    w = np.ones(len(X))
+    return w """
     qt = pt(pair)
-    A = c.A_gammagamma(x1,x2,qt,Kt,ml,m_pair,RA,aA,Z)
-    B = c.B_gammagamma(x1,x2,qt,Kt,ml,m_pair,RA,aA,Z)
-    C = c.C_gammagamma(x1,x2,qt,Kt,ml,m_pair,RA,aA,Z)
+    A = c.A_gammagamma(x1,x2,qt,Kt,ml,m_pair,RA,aA,Z,ion)
+    B = c.B_gammagamma(x1,x2,qt,Kt,ml,m_pair,RA,aA,Z,ion)
+    C = c.C_gammagamma(x1,x2,qt,Kt,ml,m_pair,RA,aA,Z,ion)
     if np.abs(B>A) >1 or np.abs(C/A) > 1:
         tqdm.tqdm.write(f"WARNING: B or C is larger than A for x1={x1},x2={x2},qt={qt},Kt={Kt},ml={ml},m_pair={m_pair},RA={RA},aA={aA},Z={Z}")
         C = C/10
+        B = B/10
+    A_list.append(A)
+    B_list.append(B)
+    C_list.append(C)
     w = A + B*np.cos(2*X) + C*np.cos(4*X)
     return w
 
 
-def InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,PID_lepton,RA,aA,wA,Z):
+def InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,PID_lepton,RA,aA,wA,Z,ion):
     r1 = np.random.random()  # a random float number between 0 and 1
     r2 = np.random.random()  # a random float number between 0 and 1
     ph1 = 2 * np.pi * r1
@@ -468,7 +475,7 @@ def InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,PID_lepton,RA,aA,wA,Z):
     pext3 = pext2.copy()
     if azimuthalSmearing:
         X = np.linspace(0,np.pi,1000)
-        prob = phi_distribution(X,pext2,Ecm,PID_lepton,RA,aA,wA,Z)
+        prob = phi_distribution(X,pext2,Ecm,PID_lepton,RA,aA,wA,Z,ion)
         w = prob/np.sum(prob)
         results = sufflePhi(pext2,X,w)
         if results is None:
@@ -647,7 +654,7 @@ for i,file in enumerate(files):
                         if nuclei[0] == 'p':
                             Q12=generate_Q2_epa_proton(x1,Q2max)
                         else:
-                            RA,aA,wA,_=WoodsSaxon[nuclei[0]]
+                            RA,aA,wA,Z=WoodsSaxon[nuclei[0]]
                             Q12=generate_Q2_epa_ion(0,x1,Q2max,RA,aA,wA)
                         if nuclei[1] == 'p':
                             Q22=generate_Q2_epa_proton(x2,Q2max)
@@ -660,8 +667,8 @@ for i,file in enumerate(files):
                                 Q22=generate_Q2_epa_ion(1,x2,Q2max,RA,aA,wA)
                         Q1=np.sqrt(Q12)
                         Q2=np.sqrt(Q22)
-                        # perform the initial momentum reshuffling
-                        pext_new=InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,PID_lepton,RA,aA,wA,Z)
+                        #perform the initial momentum reshuffling
+                        pext_new=InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,PID_lepton,RA,aA,wA,Z,nuclei[0])
                         count = count + 1
                     if E_beam1 != E_beam2:
                         # boost back from the symmetric beams to antisymmetric beams
@@ -705,12 +712,14 @@ if nan_count > 0:
     tqdm.tqdm.write(f"INFO: The ratio of nan is {nan_count/nevent} for {nevent} events")
 if nan_count/nevent > 0.01:
     tqdm.tqdm.write("WARNING: The ratio of nan is too large, please check the input lhe files")
-""" if azimuthalSmearing:
+if azimuthalSmearing:
     plt.hist(L_aim,bins=100,alpha=0.5,label='aim')
     plt.hist(L_real,bins=100,alpha=0.5,label='real')
     plt.hist(err,bins=100,alpha=0.5,label='err')
     plt.ylim(0,2*nevent/100)
-    bins = np.logspace(-8,-1,100)
-    plt.hist(X_list,bins=bins)
+    #bins = np.logspace(-8,-1,100)
+    #plt.hist(X_list,bins=bins)
     plt.legend()
-    plt.show() """
+    plt.show()
+
+    print(np.array(A_list).mean(),np.array(B_list).mean(),np.array(C_list).mean())
