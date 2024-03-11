@@ -46,8 +46,9 @@ else:
 
 # name:(RA,aA,wA), RA and aA are in fm, need divide by GeVm12fm to get GeV-1
 GeVm12fm=0.1973
+path = os.path.dirname(os.path.abspath(__file__))+'/'
 config = configparser.ConfigParser()
-config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
+config.read(path+'config.ini')
 WoodsSaxon = eval(config.get("Ion","WoodsSaxon"))
 
 if azimuthalSmearing:
@@ -407,6 +408,7 @@ X_list = []
 A_list = []
 B_list = []
 C_list = []
+qt_list = []
 def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z,ion):
     dict_mass = {11:0.000511,13:0.105658}
     g1,g2,l1,l2 = np.array(pext2)
@@ -414,7 +416,7 @@ def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z,ion):
     kt = 0.5*(l1-l2)
     Kt = pt(kt)
     ml = dict_mass[PID_lepton]
-    mt = np.sqrt(ml**2 + kt[1]**2 + kt[2]**2)
+    mt = np.sqrt(ml**2 + Kt**2)
     y1 = rapidity(l1)
     y2 = rapidity(l2)
     m_pair = M(pair)
@@ -435,6 +437,7 @@ def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z,ion):
     A_list.append(A)
     B_list.append(B)
     C_list.append(C)
+    qt_list.append(qt)
     w = A + B*np.cos(2*X) + C*np.cos(4*X)
     return w
 
@@ -723,3 +726,6 @@ if azimuthalSmearing:
     plt.show()
 
     print(np.array(A_list).mean(),np.array(B_list).mean(),np.array(C_list).mean())
+    ratio = [C_list[i]/A_list[i] for i in range(len(A_list))]
+    qtvsC = np.column_stack((qt_list,ratio))
+    np.savetxt("qtvsA.dat",qtvsC)

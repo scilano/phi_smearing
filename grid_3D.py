@@ -8,6 +8,7 @@ import tqdm
 import configparser
 from coefficient_eval import *
 from ast import literal_eval
+import os
 
 
 class grid3D:
@@ -35,8 +36,9 @@ class grid3D:
             name (str, optional): The name of the grid.
             function (function, optional): The function associated with the grid, under the form f(x,R,A,Z)
         """
+        path = os.path.dirname(os.path.abspath(__file__))+'/'
         config = configparser.ConfigParser()
-        config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
+        config.read(path+'config.ini')
         WoodsSaxon = literal_eval(config.get("Ion", "WoodsSaxon"))
         self.ion = ion
         self.RA = WoodsSaxon[ion][0]/0.197
@@ -150,12 +152,16 @@ class grid3D:
         Returns:
             The interpolated value at the specified value.
         """
+        inBound1 = x[0] >= self.axis[0][0] and x[0] <= self.axis[0][-1]
+        inBound2 = x[1] >= self.axis[1][0] and x[1] <= self.axis[1][-1]
+        inBound3 = x[2] >= self.axis[2][0] and x[2] <= self.axis[2][-1]
+        inBound = inBound1 and inBound2 and inBound3
         if self.interpolated == False:
             self.interpolate()
-        try:
+        if inBound:
             val = float(self.interpolatefun(x))
             return float(self.interpolatefun(x))
-        except:
+        else:
             raise ValueError(f"Value {x} out of grid bounds:({self.axis[0][0]}-{self.axis[0][-1]}) ({self.axis[1][0]}-{self.axis[1][-1]}) ({self.axis[2][0]}-{self.axis[2][-1]})")
             
         

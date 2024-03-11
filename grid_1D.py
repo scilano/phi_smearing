@@ -8,6 +8,7 @@ import tqdm
 import configparser
 from multiprocessing import Pool
 from ast import literal_eval
+import os
 
 class grid1D:
     """
@@ -34,8 +35,9 @@ class grid1D:
             name (str, optional): The name of the grid.
             function (function, optional): The function associated with the grid, under the form f(x,R,A,Z)
         """
+        path = os.path.dirname(os.path.abspath(__file__))+'/'
         config = configparser.ConfigParser()
-        config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
+        config.read(path+'config.ini')
         WoodsSaxon = literal_eval(config.get("Ion", "WoodsSaxon"))
         self.ion = ion
         self.RA = WoodsSaxon[ion][0]/0.197

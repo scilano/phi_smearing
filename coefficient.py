@@ -8,19 +8,18 @@ import grid_3D
 import coefficient_eval as c_eval
 import configparser
 import matplotlib.pyplot as plt
+import sys
 from ast import literal_eval
 
+path = os.path.dirname(os.path.abspath(__file__))+ "/"
+
 config = configparser.ConfigParser()
-config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
-path = config.get('General', 'path')
+config.read(path+'config.ini')
 num_core = config.getint('General', 'num_core')
 
 alphaem = 1/137.035999084
 mproton = 0.9382720813
-
-
-
-
+ 
 
 def I1(x1,x2,qt,RA,aA,Z,ion, force_computation=False):
     global grid_I1
@@ -263,27 +262,9 @@ def main():
     WoodsSaxon = literal_eval(config.get("Ion", "WoodsSaxon"))
     ion = 'Au197'
     R,a,Z = WoodsSaxon[ion][0]/0.197,WoodsSaxon[ion][1]/0.197,WoodsSaxon[ion][3]
-    
-    QT = np.logspace(-4,-1,500)
-    x = 1e-2
-    I1_array = np.zeros_like(QT)
-    I2_array = np.zeros_like(QT)
-    I3_array = np.zeros_like(QT)
-    I4_array = np.zeros_like(QT)
-    for i,qt in enumerate(QT):
-        I1_array[i] = I1(x,x,qt,R,a,Z,ion)
-        I2_array[i] = I2(x,x,qt,R,a,Z,ion)
-        I3_array[i] = I3(x,x,qt,R,a,Z,ion)
-        I4_array[i] = I4(x,x,qt,R,a,Z,ion)
         
-    plt.plot(QT,I1_array, label="I1")
-    plt.plot(QT,I2_array, label="I2")
-    plt.plot(QT,I3_array, label="I3")
-    plt.plot(QT,I4_array, label="I4")
-    plt.semilogx()
-    plt.legend()
-    plt.show()
         
+    return 0
 
     
 if __name__ == "__main__":

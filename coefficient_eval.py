@@ -9,11 +9,12 @@ import scipy.signal as signal
 import grid_1D
 import configparser
 import tqdm
+import os
 import mpmath as mp
 from ast import literal_eval
-
+path = os.path.dirname(os.path.abspath(__file__))+'/'
 config = configparser.ConfigParser()
-config.read('/afs/cern.ch/user/n/ncrepet/work/scripts/phi_smearing/config.ini')
+config.read(path+'config.ini')
 ion = config.get("General","ion_name")
 
 
@@ -200,17 +201,14 @@ def I1_integrand(x1,x2,pt1,qt,th,RA,aA,Z):
 
 def I1_eval(X,RA,aA,Z):
     x1,x2,qt = X
-    if qt < 0.05:
-        N_theta = 10
-    if 0.05 <= qt < 0.5:
-        N_theta = 50
+    if qt < 0.5:
+        N_theta = 100
     if 0.5 <= qt:
         N_theta = 200
-    
-    N_pt = 3000
+    N_pt = 1000
     TH1 = np.linspace(0,2*np.pi,N_theta)
-    PT1_2 = np.logspace(-1,2,N_pt-200)
-    PT1_1 = np.logspace(-5,-1,200,endpoint=False)
+    PT1_2 = np.logspace(-3,1,N_pt-200)
+    PT1_1 = np.logspace(-5,-3,200,endpoint=False)
     PT1 = np.append(PT1_1,PT1_2)
     grid_I1_th = grid_1D.grid1D(ion,N_theta)
     grid_I1_th.set_axis(TH1)
@@ -244,17 +242,15 @@ def I2_integrand(x1,x2,pt1,qt,th,RA,aA,Z):
 
 def I2_eval(X,RA,aA,Z):
     x1,x2,qt = X
-    if qt < 0.05:
-        N_theta = 10
-    if 0.05 <= qt < 0.5:
-        N_theta = 50
+    if qt < 0.5:
+        N_theta = 100
     if 0.5 <= qt:
         N_theta = 200
-    N_pt = 3000
+    N_pt = 1000
     
     TH1 = np.linspace(0,2*np.pi,N_theta)
-    PT1_2 = np.logspace(-1,2,N_pt-200)
-    PT1_1 = np.logspace(-5,-1,200,endpoint=False)
+    PT1_2 = np.logspace(-3,1,N_pt-200)
+    PT1_1 = np.logspace(-5,-3,200,endpoint=False)
     PT1 = np.append(PT1_1,PT1_2)
     grid_I2_th = grid_1D.grid1D(ion,N_theta)
     grid_I2_th.set_axis(TH1)
@@ -289,17 +285,15 @@ def I3_integrand(x1,x2,pt1,qt,th,RA,aA,Z):
     
 def I3_eval(X,RA,aA,Z):
     x1,x2,qt = X
-    if qt < 0.05:
-        N_theta = 10
-    if 0.05 <= qt < 0.5:
-        N_theta = 50
+    if qt < 0.5:
+        N_theta = 100
     if 0.5 <= qt:
         N_theta = 200
-    N_pt = 3000
+    N_pt = 1000
     
     TH1 = np.linspace(0,2*np.pi,N_theta)
-    PT1_2 = np.logspace(-1,2,N_pt-200)
-    PT1_1 = np.logspace(-5,-1,200,endpoint=False)
+    PT1_2 = np.logspace(-3,1,N_pt-200)
+    PT1_1 = np.logspace(-5,-3,200,endpoint=False)
     PT1 = np.append(PT1_1,PT1_2)
     grid_I3_th = grid_1D.grid1D(ion,N_theta)
     grid_I3_th.set_axis(TH1)
@@ -310,6 +304,7 @@ def I3_eval(X,RA,aA,Z):
             grid_I3_pt.values[j] = pt1*I3_integrand(x1,x2,pt1,qt,th1,RA,aA,Z)
         grid_I3_th.values[i] = grid_peak_integration(grid_I3_pt)
     I = scp.integrate.quad(lambda th1: grid_I3_th.evaluate(th1),0,2*np.pi,full_output=1)
+    
     
     #if the integration didn't work (beacause too much oscilation probably), try other method
     if I[2]["last"] == 50:
@@ -336,17 +331,15 @@ def I4_integrand(x1,x2,pt1,qt,th,RA,aA,Z):
 
 def I4_eval(X,RA,aA,Z):
     x1,x2,qt = X
-    if qt < 0.05:
-        N_theta = 10
-    if 0.05 <= qt < 0.5:
-        N_theta = 50
+    if qt < 0.5:
+        N_theta = 100
     if 0.5 <= qt:
         N_theta = 200
-    N_pt = 3000
+    N_pt = 1000
     
     TH1 = np.linspace(0,2*np.pi,N_theta)
-    PT1_2 = np.logspace(-1,2,N_pt-200)
-    PT1_1 = np.logspace(-5,-1,200,endpoint=False)
+    PT1_2 = np.logspace(-3,1,N_pt-200)
+    PT1_1 = np.logspace(-5,-3,200,endpoint=False)
     PT1 = np.append(PT1_1,PT1_2)
     grid_I4_th = grid_1D.grid1D(ion,N_theta)
     grid_I4_th.set_axis(TH1)
@@ -357,7 +350,7 @@ def I4_eval(X,RA,aA,Z):
             grid_I4_pt.values[j] = pt1*I4_integrand(x1,x2,pt1,qt,th1,RA,aA,Z)
         grid_I4_th.values[i] = grid_peak_integration(grid_I4_pt)
     I = scp.integrate.quad(lambda th1: grid_I4_th.evaluate(th1),0,2*np.pi,full_output=1)
-    
+    grid_peak_integration(grid_I4_th,True)
     #if the integration didn't work (because too much oscilation probably), try other method
     if I[2]["last"] == 50:
         res = grid_peak_integration(grid_I4_th)
@@ -375,6 +368,7 @@ def grid_peak_integration(grid,plot=False):
     if plot:
         plt.plot(X,Y)
         plt.plot(X[peaks],Y[peaks],marker="x",linestyle="None")
+        plt.semilogx()
         plt.semilogy()
         plt.show()
     I = 0
@@ -392,20 +386,6 @@ def main():
     WoodsSaxon = literal_eval(config.get("Ion", "WoodsSaxon"))
     ion = 'Pb208'
     R,a,Z = WoodsSaxon[ion][0]/0.197,WoodsSaxon[ion][1]/0.197,WoodsSaxon[ion][3]
-    x1 = 0.01
-    x2 = 0.01
-    QT = np.logspace(-5,1,2000)
-    X = np.zeros_like(QT)
-    for i,qt in enumerate(QT):
-        X[i] = I3_integrand(x1,x2,qt,0.1,1,R,a,Z)
-    
-    plt.plot(QT,X)
-    plt.semilogx()
-    plt.show()
-    
-
-    
-      
     
     return 0
 
