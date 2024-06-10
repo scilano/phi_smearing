@@ -586,8 +586,9 @@ for i,file in enumerate(files):
                 procid=sline.split()[-1]
                 procpos=sline.index(' '+procid)
                 ilil=ilil+1
-                sline=sline[:procpos]+(' %d'%(offset+ilil))
+                #sline=sline[:procpos]+(' %d'%(offset+ilil))
                 proc_dict[procid]=offset+ilil
+                tqdm.tqdm.write(sline)
                 if i == 0:
                     inits.append(sline)
                 else:
