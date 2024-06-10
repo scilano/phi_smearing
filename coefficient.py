@@ -262,7 +262,7 @@ def main():
     WoodsSaxon = literal_eval(config.get("Ion", "WoodsSaxon"))
     ion = 'Au197'
     R,a,Z = WoodsSaxon[ion][0]/0.197,WoodsSaxon[ion][1]/0.197,WoodsSaxon[ion][3]
-
+    print(I1(1e-3,1e-3,1e-3,R,a,Z,ion))
       
     return 0
 

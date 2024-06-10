@@ -1,4 +1,6 @@
 __pycache__/
 *.
 test_*
-*_old
+*_old/
+maps/
+venv/

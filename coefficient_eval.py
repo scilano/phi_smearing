@@ -20,15 +20,38 @@ ion = config.get("General","ion_name")
 
 
 def formfactor(k, RA, aA, Z):
-    if k*np.pi*aA < 250:
-        rho0 = -1/(8*np.pi*aA**3*mp.polylog(3,-np.exp(RA/aA)))
-        N_terms = config.getint('formfactor', 'N_terms')
+    if Z>1:
+        if k*np.pi*aA < 250:
+            rho0 = -1/(8*np.pi*aA**3*mp.polylog(3,-np.exp(RA/aA)))
+            N_terms = config.getint('formfactor', 'N_terms')
+            
+            Fch1 = 4*np.pi**2*rho0*aA**3/(k**2*aA**2*np.sinh(np.pi*k*aA)**2)*(np.pi*k*aA*np.cosh(np.pi*k*aA)*np.sin(k*RA)-k*RA*np.sinh(np.pi*k*aA)*np.cos(k*RA))
+            Fch2_term = [(-1 if i%2==0 else 1)*i*np.exp(-i*RA/aA)/(i**2+k**2*aA**2) for i in range(1,N_terms+1)]
+            
+            return float(Fch1 + 8*np.pi*rho0*aA**3*np.sum(Fch2_term))
+        else : return 0
+    else:
+        k2 = k**2
+        if k2 > 3:
+            return 0
+        aa = 1.1867816581938533
+        a0=0.999871
+        a1=-0.215829
+        a2=0.509109
+        a3=-0.621597
+        a4=0.246705
+        b0=1.01809
+        b1=-0.778974e-1
+        b2=-0.184511e-1
+        b3=0.289159e-2
+        b4=-0.121585e-3
+        if k2 > 1.12:
+            return (b0 + b1*k2 + b2*k2**2 + b3*k2**3 + b4*k2**4)/(1 + aa**2*k2)**2
+        else:
+            return (a0 + a1*k2 + a2*k2**2 + a3*k2**3 + a4*k2**4)/(1 + aa**2*k2)**2
         
-        Fch1 = 4*np.pi**2*rho0*aA**3/(k**2*aA**2*np.sinh(np.pi*k*aA)**2)*(np.pi*k*aA*np.cosh(np.pi*k*aA)*np.sin(k*RA)-k*RA*np.sinh(np.pi*k*aA)*np.cos(k*RA))
-        Fch2_term = [(-1 if i%2==0 else 1)*i*np.exp(-i*RA/aA)/(i**2+k**2*aA**2) for i in range(1,N_terms+1)]
         
-        return float(Fch1 + 8*np.pi*rho0*aA**3*np.sum(Fch2_term))
-    else : return 0
+        
 
 def photon_flux(x,k2,RA,aA,Z):
     alphaem = 1/137.035999084
@@ -162,6 +185,8 @@ def I4_integrand(x1,x2,pt1,qt,th,RA,aA,Z):
     pt12 = pt1*pt1
     cth = np.cos(th)
     pt22 = pt12 + qt2 - 2*pt1*qt*cth
+    if pt22 < 0:
+        pt22 = 0
     pt2 = np.sqrt(pt22)
     N = photon_flux(x1,pt12,RA,aA,Z)*photon_flux(x2,pt22,RA,aA,Z)
     A = 0
@@ -175,7 +200,7 @@ def I4_integrand(x1,x2,pt1,qt,th,RA,aA,Z):
 def I4_eval(X,RA,aA,Z):
     x1,x2,qt = X
     if qt < 0.5:
-        N_theta = 400
+        N_theta = 100
     if 0.5 <= qt:
         N_theta = 200
     N_pt = 1000
@@ -226,9 +251,9 @@ def grid_peak_integration(grid,plot=False):
 
 def main():
     WoodsSaxon = literal_eval(config.get("Ion", "WoodsSaxon"))
-    ion = 'Au197'
+    ion = 'Pb208'
     R,a,Z = WoodsSaxon[ion][0]/0.197,WoodsSaxon[ion][1]/0.197,WoodsSaxon[ion][3]
-    
+    #I4_eval([1e-5,1e-5,0.1],R,a,Z)
     
     
     return 0

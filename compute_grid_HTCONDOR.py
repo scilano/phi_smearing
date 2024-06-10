@@ -10,7 +10,7 @@ import configparser
 
 
 
-def compute_grid(grid_name):
+def compute_grid(grid_name,index,jobFlavour='"testmatch"'):
     config = configparser.ConfigParser()
     config.read('config.ini')
     path = config.get('General', 'path')
@@ -35,10 +35,9 @@ def compute_grid(grid_name):
     credd = htcondor.Credd()
     print("[CREDD] Adding user credentials to credd daemon")
     credd.add_user_cred(htcondor.CredTypes.Kerberos, None)
-    htmap.settings["DELIVERY_METHOD"] = "assume"
+    htmap.settings["DELIVERY_METHOD"] = "shared"
     htmap.settings["MAP_OPTIONS.getenv"] = "True"
-
-    index = [(i,j) for i in range(Npointsqt) for j in range(Npointsx1)]
+    
 
     input_files_py = [file for file in os.listdir(path) if (".py" in file) or (".ini" in file)]
     X1 = np.logspace(logx1min,logx1max,Npointsx1)
@@ -51,21 +50,24 @@ def compute_grid(grid_name):
         i, j = X
         print(f"Computing {grid_name} at ({i},{j})...")
         f = getattr(c_eval, f'{grid_name}_eval')
-        qt = QT[i]
-        x1 = X1[j]
-        res = np.zeros_like(X2)
-        for k, x2 in enumerate(X2):
+        x1 = X1[i]
+        x2 = X2[j]
+        res = np.zeros_like(QT)
+        for k, qt in enumerate(QT):
             res[k] = f([x1, x2, qt], RA, aA, Z)
         return i, j, res
 
 
     if grid_name in htmap.get_tags():
         print(f"Previous {grid_name} found, deleting...")
-        htmap.remove(grid_name)
+        htmap.remove(grid_name,True)
         print(f"Previous {grid_name} deleted.")
 
     print(f"Building {grid_name}...")
-    with htmap.build_map(grid_func, tag=grid_name, map_options=htmap.MapOptions(fixed_input_files=input_files_py, custom_options={'JobFlavour': '"tomorrow"', "MY.SendCredential": "true"})) as grid_builder:
+    opt = {}
+    opt["JobFlavour"] = jobFlavour
+    opt["MY.SendCredential"] = "true"
+    with htmap.build_map(grid_func, tag=grid_name, map_options=htmap.MapOptions(fixed_input_files=input_files_py, custom_options=opt)) as grid_builder:
         for X in index:
             grid_builder(X, R, a, Z, grid_name)
     print(f"{grid_name} built.")
@@ -75,8 +77,20 @@ def compute_grid(grid_name):
     print(f"Computation launched on HTCondor for {grid_name}.")
 
 
+def main():
+    grid_names =["I3","I4"]
 
-grid_names = ["I3","I4"]
+    for grid in grid_names:
+        config = configparser.ConfigParser()
+        config.read('config.ini')
+        Npointsx1 = config.getint(f'grid', 'Npointsx1')
+        Npointsx2 = config.getint(f'grid', 'Npointsx2')
+        index = [(i,j) for i in range(Npointsx1) for j in range(Npointsx2)]
+        
+        compute_grid(grid,index)
+    return 0
 
-for grid in grid_names:
-    compute_grid(grid)
+
+if __name__ == "__main__":
+    main()
+        

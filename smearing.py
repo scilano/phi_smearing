@@ -34,11 +34,17 @@ nuclei=nuclei[0]
 nuclei=nuclei.replace('--beams=','')
 nuclei=[nucleus.rstrip().lstrip() for nucleus in nuclei.split(' ')]
 
-A1 = float(''.join([a for a in nuclei[0] if a.isdigit()]))
-A2 = float(''.join([a for a in nuclei[1] if a.isdigit()]))
+if nuclei[0] == "p":
+	A1 = 1
+else:
+	A1 = float(''.join([a for a in nuclei[0] if a.isdigit()]))
+if nuclei[1] == "p":
+	A2 = 1
+else:
+	A2 = float(''.join([a for a in nuclei[1] if a.isdigit()]))
 
 if not azimuthalSmearing:
-    azimuthalSmearing = True
+    azimuthalSmearing = False
 else:
     azimuthalSmearing=azimuthalSmearing[0]
     azimuthalSmearing=azimuthalSmearing.replace('--azimuthal_smearing=','')
@@ -132,11 +138,9 @@ def generate_Q2_epa_proton(x,Q2max):
                     p_xmax_array.append(max_Q2)
                     p_fmax_array.append(max_fun)
                 else:
-                    max_Q2 = optimize.fmin(lambda x0: -distfun(xx,x0),\
-                                                    (logQ2oQ02max+logQ2oQ02min)/2,\
-                                               full_output=False,disp=False)
-                    max_fun = distfun(xx,max_Q2[0])
-                    p_xmax_array.append(max_Q2[0])
+                    max_Q2 = optimize.fminbound(lambda x0: -distfun(xx,x0),logQ2oQ02min,logQ2oQ02max,full_output=False,disp=False)
+                    max_fun = distfun(xx,max_Q2)
+                    p_xmax_array.append(max_Q2)
                     p_fmax_array.append(max_fun)
         p_x_array=np.array(p_x_array)
         p_xmax_array=np.array(p_xmax_array)
@@ -247,11 +251,9 @@ def generate_Q2_epa_ion(ibeam,x,Q2max,RA,aA,wA):
                     A_xmax_array[ibeam].append(max_Q2)
                     A_fmax_array[ibeam].append(max_fun)
                 else:
-                    max_Q2 = optimize.fmin(lambda x0: -distfun(xx,x0),\
-                                                    (logQ2oQ02max+logQ2oQ02min)/2,\
-                                               full_output=False,disp=False)
-                    max_fun = distfun(xx,max_Q2[0])
-                    A_xmax_array[ibeam].append(max_Q2[0])
+                    max_Q2 = optimize.fminbound(lambda x0: -distfun(xx,x0),logQ2oQ02min,logQ2oQ02max,full_output=False,disp=False)
+                    max_fun = distfun(xx,max_Q2)
+                    A_xmax_array[ibeam].append(max_Q2)
                     A_fmax_array[ibeam].append(max_fun)
         A_x_array[ibeam]=np.array(A_x_array[ibeam])
         A_xmax_array[ibeam]=np.array(A_xmax_array[ibeam])
@@ -332,9 +334,9 @@ def deltaPhi(pt1,pt2,phi1,phi_diff):
         d = 2*np.pi - d
     return d
 
-L_aim = []
+""" L_aim = []
 L_real = []
-err = []
+err = [] """
 
     
 def sufflePhi(pext2,X,w):
@@ -352,10 +354,10 @@ def sufflePhi(pext2,X,w):
     else:
         phi_diffmin = 0.95*phi_diff
         phi_diffmax = 1.05*phi_diff
-    qt1min = qt1*0.8
-    qt1max = qt1*1.2
-    qt2min = qt2*0.8
-    qt2max = qt2*1.2
+    qt1min = qt1*0.9
+    qt1max = qt1*1.1
+    qt2min = qt2*0.9
+    qt2max = qt2*1.1
     dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
     
     if dphi<np.pi/4:
@@ -382,9 +384,9 @@ def sufflePhi(pext2,X,w):
     qt1,qt2,phi_diff = res.x
     phi2 = phi1 + phi_diff
     dphi = deltaPhi(qt1,qt2,phi1,phi_diff)
-    L_aim.append(dphi_choosen)
+    """ L_aim.append(dphi_choosen)
     L_real.append(dphi)
-    err.append(np.abs(dphi-dphi_choosen))
+    err.append(np.abs(dphi-dphi_choosen)) """
     return phi1,phi2,qt1,qt2
 
 
@@ -404,11 +406,7 @@ def M(p):
     return np.sqrt(np.abs(M2))
 
 
-X_list = []
-A_list = []
-B_list = []
-C_list = []
-qt_list = []
+
 def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z,ion):
     dict_mass = {11:0.000511,13:0.105658}
     g1,g2,l1,l2 = np.array(pext2)
@@ -422,10 +420,6 @@ def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z,ion):
     m_pair = M(pair)
     x1 = mt/sqrt_s*(np.exp(y1)+np.exp(y2))
     x2 = mt/sqrt_s*(np.exp(-y1)+np.exp(-y2))
-    """ X_list.append(x1)
-    X_list.append(x2)
-    w = np.ones(len(X))
-    return w """
     qt = pt(pair)
     A = c.A_gammagamma(x1,x2,qt,Kt,ml,m_pair,RA,aA,Z,ion)
     B = c.B_gammagamma(x1,x2,qt,Kt,ml,m_pair,RA,aA,Z,ion)
@@ -434,10 +428,6 @@ def phi_distribution(X,pext2,sqrt_s,PID_lepton,RA,aA,wA,Z,ion):
         tqdm.tqdm.write(f"WARNING: B or C is larger than A for x1={x1},x2={x2},qt={qt},Kt={Kt},ml={ml},m_pair={m_pair},RA={RA},aA={aA},Z={Z}")
         C = C/10
         B = B/10
-    A_list.append(A)
-    B_list.append(B)
-    C_list.append(C)
-    qt_list.append(qt)
     w = A + B*np.cos(2*X) + C*np.cos(4*X)
     return w
 
@@ -473,8 +463,8 @@ def InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,PID_lepton,RA,aA,wA,Z,ion):
         PBOO2[j]=pext2[0][j]+pext2[1][j]
     Q=np.sqrt(x1*x2)*Ecm
     for j in range(2,len(pext)):
-        pext2[j]=boostl2(Q,PBOO1,PBOO2,pext[j])        
-    
+        pext2[j]=boostl2(Q,PBOO1,PBOO2,pext[j])      
+
     pext3 = pext2.copy()
     if azimuthalSmearing:
         X = np.linspace(0,np.pi,1000)
@@ -494,6 +484,12 @@ def InitialMomentumReshuffle(Ecm,x1,x2,Q1,Q2,pext,PID_lepton,RA,aA,wA,Z,ion):
         pext3[2] = [alpha1*pext2[2][0],qt1*np.cos(phi1+ang),qt1*np.sin(phi1+ang),alpha1*pext2[2][3]]
         pext3[3] = [alpha2*pext2[3][0],qt2*np.cos(phi2+ang),qt2*np.sin(phi2+ang),alpha2*pext2[3][3]]
         
+        PBOO3 = np.sum([np.array(p) for p in pext2[2:]],axis=0)
+        PBOO4 = np.sum([np.array(p) for p in pext3[2:]],axis=0)
+        
+        for i in range(2):
+            pext3[i] = boostl2(Q,PBOO3,PBOO4,pext3[i])
+        
     return pext3
 
 
@@ -512,6 +508,17 @@ nan_count = 0
 nevent=0
 ilil=0
 count = 0
+if nuclei[0] != "p":
+   A1 = int(''.join([a for a in nuclei[0] if a.isdigit()]))
+   A1sym = ''.join([a for a in nuclei[0] if a and not a.isdigit()])
+   Z1 = WoodsSaxon[nuclei[0]][3]
+   IonID_beam1=1000000000+Z1*10000+A1*10
+if nuclei[1] != "p":
+   A2 = int(''.join([a for a in nuclei[1] if a.isdigit()]))
+   A2sym = ''.join([a for a in nuclei[1] if a and not a.isdigit()])
+   Z2 = WoodsSaxon[nuclei[1]][3]
+   IonID_beam2=1000000000+Z2*10000+A2*10
+   
 for i,file in enumerate(files):
     N_event=0
     
@@ -564,9 +571,10 @@ for i,file in enumerate(files):
                     PID_beam2=int(ff[1])
                     E_beam1=float(ff[2])/A1
                     E_beam2=float(ff[3])/A2
-                    if abs(PID_beam1) != 2212 or abs(PID_beam2) != 2212:
-                        tqdm.tqdm.write("Not a proton-proton collider")
-                        raise ValueError
+                    if abs(PID_beam1) != 2212 and abs(PID_beam1) != IonID_beam1:
+                        raise ValueError(f"The first beam does not match. In lhe file:{PID_beam1}, expected: {IonID_beam1}")
+                    if abs(PID_beam2) != 2212 and abs(PID_beam2) != IonID_beam2:
+                        raise ValueError(f"The second beam does not match.  In lhe file:{PID_beam2}, expected: {IonID_beam2}")
                     ninit1=int(sline.rsplit(' ',1)[-1])
                 else:
                     ninit1=ninit1+int(sline.rsplit(' ',1)[-1])
@@ -655,11 +663,13 @@ for i,file in enumerate(files):
                     while pext_new == None:
                         # generate Q1 and Q2
                         if nuclei[0] == 'p':
+                            RA,aA,wA,Z = None,None,None,None
                             Q12=generate_Q2_epa_proton(x1,Q2max)
                         else:
                             RA,aA,wA,Z=WoodsSaxon[nuclei[0]]
                             Q12=generate_Q2_epa_ion(0,x1,Q2max,RA,aA,wA)
                         if nuclei[1] == 'p':
+                            RA,aA,wA,Z = None,None,None,None
                             Q22=generate_Q2_epa_proton(x2,Q2max)
                         else:
                             if nuclei[0] == nuclei[1]:
@@ -715,7 +725,7 @@ if nan_count > 0:
     tqdm.tqdm.write(f"INFO: The ratio of nan is {nan_count/nevent} for {nevent} events")
 if nan_count/nevent > 0.01:
     tqdm.tqdm.write("WARNING: The ratio of nan is too large, please check the input lhe files")
-if azimuthalSmearing:
+""" if azimuthalSmearing:
     plt.hist(L_aim,bins=100,alpha=0.5,label='aim')
     plt.hist(L_real,bins=100,alpha=0.5,label='real')
     plt.hist(err,bins=100,alpha=0.5,label='err')
@@ -728,4 +738,4 @@ if azimuthalSmearing:
     print(np.array(A_list).mean(),np.array(B_list).mean(),np.array(C_list).mean())
     ratio = [C_list[i]/A_list[i] for i in range(len(A_list))]
     qtvsC = np.column_stack((qt_list,ratio))
-    np.savetxt("qtvsA.dat",qtvsC)
+    np.savetxt("qtvsA.dat",qtvsC) """
