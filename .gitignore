@@ -4,3 +4,5 @@ test_*
 *_old/
 maps/
 venv/
+*.f90
+usefull*
