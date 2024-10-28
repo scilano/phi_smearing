@@ -73,7 +73,18 @@ def I1_integrand(x1, x2, pt1, qt, th, RA, aA, Z):
     return photon_flux(x1, pt12, RA, aA, Z) * photon_flux(x2, pt22, RA, aA, Z)
 
 
-def I1_eval(X, RA, aA, Z):
+def I1_eval(X, RA, aA, Z, bornsup):
+    x1, x2, qt = X
+
+    def func(lnpt1, theta):
+        pt1 = np.exp(lnpt1)
+        return pt1**2 * I1_integrand(x1, x2, pt1, qt, theta, RA, aA, Z)
+
+    result = scp.integrate.dblquad(func, 0, 2 * np.pi, -np.inf, bornsup)
+    return result[0]
+
+
+def I1_eval_old(X, RA, aA, Z):
     x1, x2, qt = X
     N_theta = 500
     N_pt = 1000
@@ -112,30 +123,15 @@ def I2_integrand(x1, x2, pt1, qt, th, RA, aA, Z):
     return (2 * A - 1) * N
 
 
-def I2_eval(X, RA, aA, Z):
+def I2_eval(X, RA, aA, Z, bornsup):
     x1, x2, qt = X
-    N_pt = 1000
-    N_theta = 500
-    TH1 = np.linspace(0, 2 * np.pi, N_theta)
-    PT1_2 = np.logspace(-3, 1, N_pt - 200)
-    PT1_1 = np.logspace(-5, -3, 200, endpoint=False)
-    PT1 = np.append(PT1_1, PT1_2)
-    grid_I2_th = grid_1D.grid1D(ion, N_theta)
-    grid_I2_th.set_axis(TH1)
-    for i, th1 in enumerate(TH1):
-        grid_I2_pt = grid_1D.grid1D(ion, N_pt)
-        grid_I2_pt.set_axis(PT1)
-        for j, pt1 in enumerate(PT1):
-            grid_I2_pt.values[j] = pt1 * I2_integrand(x1, x2, pt1, qt, th1, RA, aA, Z)
-        grid_I2_th.values[i] = grid_peak_integration(grid_I2_pt)
-    I = scp.integrate.quad(lambda th1: grid_I2_th.evaluate(th1), 0, 2 * np.pi, full_output=1)
 
-    # if the integration didn't work (beacause too much oscilation probably), try other method
-    if I[2]["last"] == 50:
-        res = grid_peak_integration(grid_I2_th)
-    else:
-        res = I[0]
-    return res
+    def func(lnpt1, theta):
+        pt1 = np.exp(lnpt1)
+        return pt1**2 * I2_integrand(x1, x2, pt1, qt, theta, RA, aA, Z)
+
+    result = scp.integrate.dblquad(func, 0, 2 * np.pi, -np.inf, bornsup)
+    return result[0]
 
 
 def I3_integrand(x1, x2, pt1, qt, th, RA, aA, Z):
@@ -153,30 +149,15 @@ def I3_integrand(x1, x2, pt1, qt, th, RA, aA, Z):
     return (2 * (A + B) - 2) * N
 
 
-def I3_eval(X, RA, aA, Z):
+def I3_eval(X, RA, aA, Z, bornsup):
     x1, x2, qt = X
-    N_pt = 1000
-    N_theta = 500
-    TH1 = np.linspace(0, 2 * np.pi, N_theta)
-    PT1_2 = np.logspace(-3, 1, N_pt - 200)
-    PT1_1 = np.logspace(-5, -3, 200, endpoint=False)
-    PT1 = np.append(PT1_1, PT1_2)
-    grid_I3_th = grid_1D.grid1D(ion, N_theta)
-    grid_I3_th.set_axis(TH1)
-    for i, th1 in enumerate(TH1):
-        grid_I3_pt = grid_1D.grid1D(ion, N_pt)
-        grid_I3_pt.set_axis(PT1)
-        for j, pt1 in enumerate(PT1):
-            grid_I3_pt.values[j] = pt1 * I3_integrand(x1, x2, pt1, qt, th1, RA, aA, Z)
-        grid_I3_th.values[i] = grid_peak_integration(grid_I3_pt)
-    I = scp.integrate.quad(lambda th1: grid_I3_th.evaluate(th1), 0, 2 * np.pi, full_output=1)
 
-    # if the integration didn't work (beacause too much oscilation probably), try other method
-    if I[2]["last"] == 50:
-        res = grid_peak_integration(grid_I3_th)
-    else:
-        res = I[0]
-    return res
+    def func(lnpt1, theta):
+        pt1 = np.exp(lnpt1)
+        return pt1**2 * I3_integrand(x1, x2, pt1, qt, theta, RA, aA, Z)
+
+    result = scp.integrate.dblquad(func, 0, 2 * np.pi, -np.inf, bornsup)
+    return result[0]
 
 
 def I4_integrand(x1, x2, pt1, qt, th, RA, aA, Z):
@@ -197,62 +178,18 @@ def I4_integrand(x1, x2, pt1, qt, th, RA, aA, Z):
     return (2 * (A - B) ** 2 - 1) * N
 
 
-def I4_eval(X, RA, aA, Z):
+def I4_eval(X, RA, aA, Z, bornsup):
     x1, x2, qt = X
-    N_pt = 1000
-    N_theta = 500
-    TH1 = np.linspace(0, 2 * np.pi, N_theta)
-    PT1_2 = np.logspace(-3, 1, N_pt - 200)
-    PT1_1 = np.logspace(-5, -3, 200, endpoint=False)
-    PT1 = np.append(PT1_1, PT1_2)
-    grid_I4_th = grid_1D.grid1D(ion, N_theta)
-    grid_I4_th.set_axis(TH1)
-    for i, th1 in enumerate(TH1):
-        grid_I4_pt = grid_1D.grid1D(ion, N_pt)
-        grid_I4_pt.set_axis(PT1)
-        for j, pt1 in enumerate(PT1):
-            grid_I4_pt.values[j] = pt1 * I4_integrand(x1, x2, pt1, qt, th1, RA, aA, Z)
-        grid_I4_th.values[i] = grid_peak_integration(grid_I4_pt)
-    I = scp.integrate.quad(lambda th1: grid_I4_th.evaluate(th1), 0, 2 * np.pi, full_output=1)
-    # if the integration didn't work (because too much oscilation probably), try other method
-    if I[2]["last"] == 50:
-        res = grid_peak_integration(grid_I4_th)
-    else:
-        res = I[0]
-    return res
 
+    def func(lnpt1, theta):
+        pt1 = np.exp(lnpt1)
+        return pt1**2 * I4_integrand(x1, x2, pt1, qt, theta, RA, aA, Z)
 
-def grid_peak_integration(grid, plot=False):
-    X = grid.axis
-    Y = grid.values
-    # Detect peaks
-    peaks = signal.find_peaks(-Y, distance=1)[0]
-    peaks = np.append([0], peaks)
-    peaks = np.append(peaks, [len(X) - 1])
-    if plot:
-        plt.plot(X, Y)
-        plt.plot(X[peaks], Y[peaks], marker="x", linestyle="None")
-        plt.semilogx()
-        plt.semilogy()
-        plt.show()
-    I = 0
-    e = 0
-    # Integrate between each peak
-    for i in range(len(peaks) - 1):
-        p1 = peaks[i]
-        p2 = peaks[i + 1]
-        f = lambda x: grid.evaluate(x)
-        res = scp.integrate.quad(f, X[p1], X[p2])
-        I += res[0]
-    return I
+    result = scp.integrate.dblquad(func, 0, 2 * np.pi, -np.inf, bornsup)
+    return result[0]
 
 
 def main():
-    WoodsSaxon = literal_eval(config.get("Ion", "WoodsSaxon"))
-    ion = "Pb208"
-    R, a, Z = WoodsSaxon[ion][0] / 0.197, WoodsSaxon[ion][1] / 0.197, WoodsSaxon[ion][3]
-    # I4_eval([1e-5,1e-5,0.1],R,a,Z)
-
     return 0
 
 
