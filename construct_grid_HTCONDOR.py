@@ -96,7 +96,7 @@ def construct_grid(grid_name,missing = False):
         print(f"Grid {grid_name} saved.")
     
     
-grid_names = ["I2","I3","I4"]
+grid_names = ["I2","I3"]
 
 for grid in grid_names:
     construct_grid(grid)

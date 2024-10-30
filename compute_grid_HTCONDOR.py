@@ -3,10 +3,9 @@ import os
 import numpy as np
 import htmap
 import htcondor
-import tqdm
 from ast import literal_eval
 import configparser
-
+from time import perf_counter
 
 
 
@@ -53,8 +52,13 @@ def compute_grid(grid_name,index,jobFlavour='"testmatch"'):
         x1 = X1[i]
         x2 = X2[j]
         res = np.zeros_like(QT)
+        N=len(QT)
+        t1 = perf_counter()
         for k, qt in enumerate(QT):
+            print(k/N*100)
             res[k] = f([x1, x2, qt], RA, aA, Z)
+        t2 = perf_counter()
+        print(t2-t1)
         return i, j, res
 
 
@@ -78,7 +82,7 @@ def compute_grid(grid_name,index,jobFlavour='"testmatch"'):
 
 
 def main():
-    grid_names =["I3","I4"]
+    grid_names =["I2","I3","I4"]
 
     for grid in grid_names:
         config = configparser.ConfigParser()
